@@ -28,3 +28,4 @@ Plugins/**/Intermediate/**
 
 # ...except this file...
 !.gitignore
+!.gitattributes
