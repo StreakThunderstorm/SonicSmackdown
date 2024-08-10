@@ -1,0 +1,289 @@
+// Copyright 2021 Prudnikov Nikolay. All Rights Reserved.
+
+/*=============================================================================
+	PrudnikovMobileShaders.ush: Prudnikov's mobile shaders
+=============================================================================*/
+
+#pragma once
+
+#if PR_SHADER
+#include "/Engine/Private/Common.ush"
+#include "/Plugin/PrExtendedShadingPro/Private/PrudnikovBlend.ush"
+#include "/Plugin/PrExtendedShadingPro/Private/PrudnikovCommon.ush"
+
+half PrCalcSpecular(FMobileShadingModelContext ShadingModelContext, float RoL, float NoH, float3 H, float3 N)
+{
+	return CalcSpecular(ShadingModelContext.Roughness, ShadingModelContext.RoughnessWithClamp, RoL, NoH, H, N);
+}
+
+#if DIRECTIONAL_LIGHT_CSM
+half PrMobileDirectionalLightCSM(FMaterialPixelParameters MaterialParameters)
+{
+	half ShadowMap = 1.0;
+	FPCFSamplerSettings Settings;
+	Settings.ShadowDepthTexture = MobileDirectionalLight.DirectionalLightShadowTexture;
+	Settings.ShadowDepthTextureSampler = MobileDirectionalLight.DirectionalLightShadowSampler;
+	Settings.TransitionScale = MobileDirectionalLight.DirectionalLightDirectionAndShadowTransition.w;
+	Settings.ShadowBufferSize = MobileDirectionalLight.DirectionalLightShadowSize;
+	Settings.bSubsurface = false;
+	Settings.bTreatMaxDepthUnshadowed = false;
+	Settings.DensityMulConstant = 0;
+	Settings.ProjectionDepthBiasParameters = 0;
+
+	float4 ShadowPosition = float4(0, 0, 0, 0);
+	for (int i = 0; i < MAX_MOBILE_SHADOWCASCADES; i++)
+	{
+		if (MaterialParameters.ScreenPosition.w < MobileDirectionalLight.DirectionalLightShadowDistances[i])
+		{
+		#if MOBILE_MULTI_VIEW
+			ShadowPosition = mul(float4(MaterialParameters.ScreenPosition.xyw, 1), ResolvedView.MobileMultiviewShadowTransform);
+			ShadowPosition = mul(ShadowPosition, MobileDirectionalLight.DirectionalLightScreenToShadow[i]);
+		#else
+			ShadowPosition = mul(float4(MaterialParameters.ScreenPosition.xyw, 1), MobileDirectionalLight.DirectionalLightScreenToShadow[i]);
+		#endif
+			break;
+		}
+	}
+
+	if (ShadowPosition.z > 0)
+	{
+		float LightSpacePixelDepthForOpaque = min(ShadowPosition.z, 0.99999f);
+		Settings.SceneDepth = LightSpacePixelDepthForOpaque;
+
+		#if MOBILE_CSM_QUALITY == 0
+			ShadowMap = ManualNoFiltering(ShadowPosition.xy, Settings);
+		#elif MOBILE_CSM_QUALITY == 1
+			ShadowMap = Manual1x1PCF(ShadowPosition.xy, Settings);
+		#elif MOBILE_CSM_QUALITY == 2
+			ShadowMap = Manual2x2PCF(ShadowPosition.xy, Settings);
+		#elif MOBILE_CSM_QUALITY == 3
+			ShadowMap = Manual3x3PCF(ShadowPosition.xy, Settings);
+		#else
+			#error Unsupported MOBILE_CSM_QUALITY value.
+		#endif
+
+		#if FADE_CSM
+			float Fade = saturate(MaterialParameters.ScreenPosition.w * MobileDirectionalLight.DirectionalLightDistanceFadeMADAndSpecularScale.x + MobileDirectionalLight.DirectionalLightDistanceFadeMADAndSpecularScale.y);
+			ShadowMap = lerp(ShadowMap, 1.0, Fade * Fade);
+		#endif
+	}
+
+	return ShadowMap;
+}
+#endif // DIRECTIONAL_LIGHT_CSM
+
+
+void PrComputeIndirect(FVertexFactoryInterpolantsVSToPS Interpolants, float3 DiffuseDir, FMobileShadingModelContext ShadingModelContext, inout half IndirectIrradiance, inout half3 Color)
+{
+#if LQ_TEXTURE_LIGHTMAP
+	float2 LightmapUV0, LightmapUV1;
+	uint LightmapDataIndex;
+	GetLightMapCoordinates(Interpolants, LightmapUV0, LightmapUV1, LightmapDataIndex);
+
+	half4 LightmapColor = GetLightMapColorLQ(LightmapUV0, LightmapUV1, LightmapDataIndex, DiffuseDir);
+	Color += LightmapColor.rgb * View.IndirectLightingColorScale;
+	IndirectIrradiance = LightmapColor.a;
+#elif CACHED_POINT_INDIRECT_LIGHTING
+	#if MATERIALBLENDING_MASKED || MATERIALBLENDING_SOLID
+		// Take the normal into account for opaque
+		FThreeBandSHVectorRGB PointIndirectLighting;
+		PointIndirectLighting.R.V0 = IndirectLightingCache.IndirectLightingSHCoefficients0[0];
+		PointIndirectLighting.R.V1 = IndirectLightingCache.IndirectLightingSHCoefficients1[0];
+		PointIndirectLighting.R.V2 = IndirectLightingCache.IndirectLightingSHCoefficients2[0];
+
+		PointIndirectLighting.G.V0 = IndirectLightingCache.IndirectLightingSHCoefficients0[1];
+		PointIndirectLighting.G.V1 = IndirectLightingCache.IndirectLightingSHCoefficients1[1];
+		PointIndirectLighting.G.V2 = IndirectLightingCache.IndirectLightingSHCoefficients2[1];
+
+		PointIndirectLighting.B.V0 = IndirectLightingCache.IndirectLightingSHCoefficients0[2];
+		PointIndirectLighting.B.V1 = IndirectLightingCache.IndirectLightingSHCoefficients1[2];
+		PointIndirectLighting.B.V2 = IndirectLightingCache.IndirectLightingSHCoefficients2[2];
+
+		FThreeBandSHVector DiffuseTransferSH = CalcDiffuseTransferSH3(DiffuseDir, 1);
+
+		half3 DiffuseGI = max(half3(0, 0, 0), DotSH3(PointIndirectLighting, DiffuseTransferSH));
+
+		IndirectIrradiance = Luminance(DiffuseGI);
+		Color += DiffuseGI * View.IndirectLightingColorScale;
+	#else
+		half3 PointIndirectLighting = IndirectLightingCache.IndirectLightingSHSingleCoefficient.rgb;
+		half3 DiffuseGI = PointIndirectLighting;
+
+		IndirectIrradiance = Luminance(DiffuseGI);
+		Color += DiffuseGI * View.IndirectLightingColorScale;
+	#endif
+#endif
+}
+
+#if MAX_DYNAMIC_POINT_LIGHTS > 0
+void PrLightingOfDynamicPointLight(
+FMaterialPixelParameters MaterialParameters, 
+FMobileShadingModelContext ShadingModelContext,
+float4 LightPositionAndInvRadius, 
+float4 LightColorAndFalloffExponent, 
+float4 SpotLightDirectionAndSpecularScale, 
+float4 SpotLightAngles, 
+inout MaterialFloat3 Color, 
+inout MaterialFloat3 SpecularColor)
+{
+	float3 ToLight = LightPositionAndInvRadius.xyz - MaterialParameters.AbsoluteWorldPosition;
+	float DistanceSqr = dot(ToLight, ToLight);
+	float3 L = ToLight * rsqrt(DistanceSqr);
+	half3 PointH = normalize(MaterialParameters.CameraVector + L);
+
+	half PointNoL = max(0, dot(MaterialParameters.WorldNormal, L));
+	half PointNoH = max(0, dot(MaterialParameters.WorldNormal, PointH));
+
+	float Attenuation;
+
+	if (LightColorAndFalloffExponent.w == 0)
+	{
+		Attenuation = 1.0 / (DistanceSqr + 1.0);
+
+		float LightRadiusMask = Square(saturate(1 - Square(DistanceSqr * (LightPositionAndInvRadius.w * LightPositionAndInvRadius.w))));
+		Attenuation *= LightRadiusMask;
+	}
+	else
+	{
+		Attenuation = RadialAttenuation(ToLight * LightPositionAndInvRadius.w, LightColorAndFalloffExponent.w);
+	}
+
+	#if PROJECT_MOBILE_ENABLE_MOVABLE_SPOTLIGHTS
+		if (SpotLightAngles.w > 0.0)
+		{
+			Attenuation *= SpotAttenuation(L, -SpotLightDirectionAndSpecularScale.xyz, SpotLightAngles.xy);
+		}
+	#endif // PROJECT_MOBILE_ENABLE_MOVABLE_SPOTLIGHTS
+
+	MaterialFloat3 LightColor = Attenuation * LightColorAndFalloffExponent.rgb * (1.0 / PI) * PointNoL;
+	Color += LightColor;
+
+	#if !FULLY_ROUGH
+		float PointRoL = max(0, dot(MaterialParameters.ReflectionVector, L));
+		SpecularColor += min(65000.0, LightColor * ShadingModelContext.SpecularColor * PrCalcSpecular(ShadingModelContext, PointRoL, PointNoH, PointH, MaterialParameters.WorldNormal)) * SpotLightDirectionAndSpecularScale.w;
+	#endif // !FULLY_ROUGH
+}
+
+#if !VARIABLE_NUM_DYNAMIC_POINT_LIGHTS
+#define NumDynamicPointLights NUM_DYNAMIC_POINT_LIGHTS
+#endif // !VARIABLE_NUM_DYNAMIC_POINT_LIGHTS
+
+void PrPointLight(inout MaterialFloat3 Color, inout MaterialFloat3 SpecularColor, FMaterialPixelParameters MaterialParameters, FMobileShadingModelContext ShadingModelContext)
+{
+	PrLightingOfDynamicPointLight(	MaterialParameters, ShadingModelContext,
+									LightPositionAndInvRadius[0], LightColorAndFalloffExponent[0], SpotLightDirectionAndSpecularScale[0], SpotLightAngles[0], 
+									Color, SpecularColor);
+
+		if (NumDynamicPointLights > 1)
+		{
+			PrLightingOfDynamicPointLight(	MaterialParameters, ShadingModelContext,
+											LightPositionAndInvRadius[1], LightColorAndFalloffExponent[1], SpotLightDirectionAndSpecularScale[1], SpotLightAngles[1], 
+											Color, SpecularColor);
+
+			if (NumDynamicPointLights > 2)
+			{
+				PrLightingOfDynamicPointLight(	MaterialParameters, ShadingModelContext,
+												LightPositionAndInvRadius[2], LightColorAndFalloffExponent[2], SpotLightDirectionAndSpecularScale[2], SpotLightAngles[2], 
+												Color, SpecularColor);
+
+				if (NumDynamicPointLights > 3)
+				{
+					PrLightingOfDynamicPointLight(	MaterialParameters, ShadingModelContext,
+													LightPositionAndInvRadius[3], LightColorAndFalloffExponent[3], SpotLightDirectionAndSpecularScale[3], SpotLightAngles[3], 
+													Color, SpecularColor);
+				}
+			}
+		}
+}
+#endif // MAX_DYNAMIC_POINT_LIGHTS > 0
+
+
+void PrShading(inout MaterialFloat3 Color, FMaterialPixelParameters MaterialParameters, FMobileShadingModelContext ShadingModelContext, FVertexFactoryInterpolantsVSToPS Interpolants, half MaterialAO)
+{
+	Color = 0.0;
+	half IndirectIrradiance = 0.0;
+
+	FPrShadingValues Values = PrShadingValues_Make();
+
+	
+	#if PR_SHADER_LM_INDIRECT
+		half3 IndirectColor = 0;
+		PrComputeIndirect(Interpolants, MaterialParameters.WorldNormal, ShadingModelContext, IndirectIrradiance, IndirectColor);
+		Values.IndirectLayer.Color = IndirectColor * MaterialAO;
+		Values.IndirectLayer.LayerModifier = ShadingModelContext.DiffuseColor;
+		Values.IndirectLayer.bEnabled = true;
+	#endif // PR_SHADER_LM_INDIRECT
+	
+
+	#if ENABLE_SKY_LIGHT
+	#if PR_SHADER_SL_INDIRECT
+		Values.SkylightLayer.Color = GetSkySHDiffuseSimple(MaterialParameters.WorldNormal) * ResolvedView.SkyLightColor.rgb * MaterialAO;
+		Values.SkylightLayer.LayerModifier = ShadingModelContext.DiffuseColor;
+		Values.SkylightLayer.bEnabled = true;
+		IndirectIrradiance += Luminance(Values.SkylightLayer.Color);
+	#endif // PR_SHADER_SL_INDIRECT
+	#endif // ENABLE_SKY_LIGHT
+
+	IndirectIrradiance *= MaterialAO;
+
+	Values.DiffuseLayer.Color = ShadingModelContext.BaseColor;
+	Values.DiffuseLayer.bEnabled = true;
+
+	Values.DirectionalLightLayer.Color = MobileDirectionalLight.DirectionalLightColor.rgb;
+	Values.DirectionalLightLayer.LayerModifier = ShadingModelContext.DiffuseColor;
+	Values.DirectionalLightLayer.bEnabled = true;
+
+	Values.ShadowLayer.Color = GetPrimaryPrecomputedShadowMask(Interpolants).r * MaterialAO;
+	Values.ShadowLayer.bEnabled = true;
+
+	#if DIRECTIONAL_LIGHT_CSM
+		half ShadowMap = PrMobileDirectionalLightCSM(MaterialParameters);
+		#if MOVABLE_DIRECTIONAL_LIGHT
+			Values.ShadowLayer.Color = ShadowMap;
+		#else // MOVABLE_DIRECTIONAL_LIGHT
+			Values.ShadowLayer.Color = min(ShadowMap, Values.ShadowLayer.Color);
+		#endif // !MOVABLE_DIRECTIONAL_LIGHT
+	#endif // DIRECTIONAL_LIGHT_CSM
+
+	Values.SelfShadowLayer.Color = max(0, dot(MaterialParameters.WorldNormal, MobileDirectionalLight.DirectionalLightDirectionAndShadowTransition.xyz));
+	Values.SelfShadowLayer.bEnabled = true;
+
+	#if !FULLY_ROUGH
+		half3 H = normalize(MaterialParameters.CameraVector + MobileDirectionalLight.DirectionalLightDirectionAndShadowTransition.xyz);
+		half NoH = max(0, dot(MaterialParameters.WorldNormal, H));
+		half RoL = max(0, dot(float3(MaterialParameters.ReflectionVector), float3(MobileDirectionalLight.DirectionalLightDirectionAndShadowTransition.xyz)));
+
+		Values.SpecularLayer.Color = MobileDirectionalLight.DirectionalLightColor.rgb * ShadingModelContext.SpecularColor * PrCalcSpecular(ShadingModelContext, RoL, NoH, H, MaterialParameters.WorldNormal) * MobileDirectionalLight.DirectionalLightDistanceFadeMADAndSpecularScale.z;
+		Values.SpecularLayer.bEnabled = true;
+	#endif // !FULLY_ROUGH
+
+	#if !FULLY_ROUGH
+		half3 SpecularIBL = GetImageBasedReflectionLighting(MaterialParameters, ShadingModelContext.Roughness, IndirectIrradiance);
+		#if MATERIAL_PLANAR_FORWARD_REFLECTIONS
+			BRANCH
+			if (abs(dot(PlanarReflectionStruct.ReflectionPlane.xyz, 1)) > .0001f)
+			{
+				half4 PlanarReflection = GetPlanarReflection(MaterialParameters.AbsoluteWorldPosition, MaterialParameters.WorldNormal, ShadingModelContext.Roughness);
+				SpecularIBL = lerp(SpecularIBL, PlanarReflection.rgb, PlanarReflection.a);
+			}
+		#endif // MATERIAL_PLANAR_FORWARD_REFLECTIONS
+		Values.ReflectionLayer.Color = SpecularIBL * ShadingModelContext.SpecularColor;
+		Values.ReflectionLayer.bEnabled = true;
+	#endif // !FULLY_ROUGH
+
+	
+	#if MAX_DYNAMIC_POINT_LIGHTS > 0
+		PrPointLight(Values.DynamicLightLayer.Color, Values.DynamicLightSpecularLayer.Color, MaterialParameters, ShadingModelContext);
+		Values.DynamicLightLayer.LayerModifier = ShadingModelContext.DiffuseColor;
+		Values.DynamicLightLayer.bEnabled = true;
+		
+		#if !FULLY_ROUGH
+			Values.DynamicLightSpecularLayer.bEnabled = true;
+		#endif // !FULLY_ROUGH
+	#endif // MAX_DYNAMIC_POINT_LIGHTS > 0
+	
+
+	PrBlend(Color, Values);
+}
+
+#endif // PR_SHADER

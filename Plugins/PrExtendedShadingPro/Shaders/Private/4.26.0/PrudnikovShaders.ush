@@ -1,0 +1,438 @@
+// Copyright 2021 Prudnikov Nikolay. All Rights Reserved.
+
+/*=============================================================================
+	PrudnikovShaders.ush: Prudnikov's shaders
+=============================================================================*/
+
+#pragma once
+
+#if PR_SHADER
+#include "/Engine/Private/Common.ush"
+#include "/Plugin/PrExtendedShadingPro/Private/PrudnikovBlend.ush"
+#include "/Plugin/PrExtendedShadingPro/Private/PrudnikovCommon.ush"
+
+FDeferredLightingSplit PrLighting(float3 WorldPosition, float3 CameraVector, FGBufferData GBuffer, float AmbientOcclusion, uint ShadingModelID, FDeferredLightData LightData, float4 LightAttenuation, float Dither, uint2 SVPos, FRectTexture SourceTexture, inout float SurfaceShadow)
+{
+	FLightAccumulator LightAccumulator = (FLightAccumulator)0;
+
+	float3 V = -CameraVector;
+	float3 N = GBuffer.WorldNormal;
+	
+	float3 L = LightData.Direction;
+	float3 ToLight = L;
+	
+	float LightMask = 1;
+	if (LightData.bRadialLight)
+	{
+		LightMask = GetLocalLightAttenuation( WorldPosition, LightData, ToLight, L );
+	}
+
+	BRANCH
+	if( LightMask > 0 )
+	{
+		FShadowTerms Shadow;
+		Shadow.SurfaceShadow = AmbientOcclusion;
+		Shadow.TransmissionShadow = 1;
+		Shadow.TransmissionThickness = 1;
+		Shadow.HairTransmittance.OpaqueVisibility = 1;
+		GetShadowTerms(GBuffer, LightData, WorldPosition, L, LightAttenuation, Dither, Shadow);
+		
+		
+		#ifdef PR_SHADER_SHADOW_BLEND_FUNCTION
+		if (LightData.bRadialLight)
+		{
+			PR_SHADER_SHADOW_BLEND_FUNCTION(Shadow.SurfaceShadow)
+		}
+		#endif // PR_SHADER_SHADOW_BLEND_FUNCTION
+		
+
+		SurfaceShadow = Shadow.SurfaceShadow;
+
+		float3 LightColor = LightData.Color;
+
+		#if NON_DIRECTIONAL_DIRECT_LIGHTING
+			float Lighting;
+			FCapsuleLight Capsule = GetCapsule(ToLight, LightData);
+			Lighting = IntegrateLight(Capsule, LightData.bInverseSquared);
+			float3 LightingDiffuse = Lighting * (1.0 / PI);
+			
+			if (LightData.bRadialLight)
+			{
+				LightAccumulator_AddSplit(LightAccumulator, LightingDiffuse, 0.0f, 0, LightColor * LightMask * Shadow.SurfaceShadow, false);
+			}
+			else
+			
+			{
+				LightAccumulator_AddSplit(LightAccumulator, LightingDiffuse, 0.0f, 0, LightColor * LightMask, false);
+			}
+		#else
+			FDirectLighting Lighting;
+			FCapsuleLight Capsule = GetCapsule(ToLight, LightData);
+			#if REFERENCE_QUALITY
+				Lighting = IntegrateBxDF(GBuffer, N, V, Capsule, Shadow, SVPos);
+			#else
+				Lighting = IntegrateBxDF(GBuffer, N, V, Capsule, Shadow, LightData.bInverseSquared);
+			#endif
+
+			Lighting.Specular *= LightData.SpecularScale;
+
+			
+			if (LightData.bRadialLight)
+			{
+				LightAccumulator_AddSplit(LightAccumulator, Lighting.Diffuse, Lighting.Specular, Lighting.Diffuse, LightColor * LightMask * Shadow.SurfaceShadow, false);
+				LightAccumulator_AddSplit(LightAccumulator, Lighting.Transmission, 0.0f, Lighting.Transmission, LightColor * LightMask * Shadow.TransmissionShadow, false);
+			}
+			else
+			
+			{
+				LightAccumulator_AddSplit(LightAccumulator, Lighting.Diffuse, Lighting.Specular, Lighting.Diffuse, LightColor * LightMask, false);
+				LightAccumulator_AddSplit(LightAccumulator, Lighting.Transmission, 0.0f, Lighting.Transmission, LightColor * LightMask, false);
+			}
+		#endif
+	}
+
+	return LightAccumulator_GetResultSplit(LightAccumulator);
+}
+
+FDeferredLightingSplit PrDirectionalLight(float3 WorldPosition, float3 CameraVector, float4 DynamicShadowFactors, FGBufferData GBufferData, uint PrimitiveId, uint EyeIndex, float Dither, FRectTexture RectTexture, inout float3 OutDirectionalLightDirection, inout float OutDirectionalLightShadow)
+{
+	FDeferredLightingSplit DirectLighting;
+	DirectLighting.DiffuseLighting = 0;
+	DirectLighting.SpecularLighting = 0;
+
+	float SpecularScale = 1;
+	#if TRANSLUCENCY_ANY_VOLUMETRIC
+		SpecularScale = 0;
+	#endif
+
+	const FDirectionalLightData DirectionalLightData = GetDirectionalLightData(EyeIndex);
+	
+	BRANCH
+	if (DirectionalLightData.HasDirectionalLight)
+	{
+		OutDirectionalLightDirection = DirectionalLightData.DirectionalLightDirection;
+
+		FDeferredLightData LightData = (FDeferredLightData)0;
+		LightData.Color = DirectionalLightData.DirectionalLightColor;
+		LightData.FalloffExponent = 0;
+		LightData.Direction = DirectionalLightData.DirectionalLightDirection;
+		LightData.DistanceFadeMAD = DirectionalLightData.DirectionalLightDistanceFadeMAD;
+		LightData.bRadialLight = false;
+		LightData.SpecularScale = SpecularScale;
+		LightData.ShadowedBits = (DirectionalLightData.DirectionalLightShadowMapChannelMask & 0xFF) != 0 ? 1 : 0;
+		LightData.ShadowMapChannelMask = UnpackShadowMapChannelMask(DirectionalLightData.DirectionalLightShadowMapChannelMask);
+		
+		#if DISABLE_FORWARD_DIRECTIONAL_LIGHT_SHADOW
+			float4 LightAttenuation = float4(1, 1, 1, 1);
+		#elif ((MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED) && !MATERIAL_SHADINGMODEL_SINGLELAYERWATER)
+			float4 PreviewShadowMapChannelMask = UnpackShadowMapChannelMask(DirectionalLightData.DirectionalLightShadowMapChannelMask >> 4);
+			float DynamicShadowing = dot(PreviewShadowMapChannelMask, DynamicShadowFactors);
+			float PerObjectShadowing = LightData.DistanceFadeMAD.y < 0.0f ? 1.0f : DynamicShadowing;
+			float WholeSceneShadowing = LightData.DistanceFadeMAD.y < 0.0f ? DynamicShadowing : 1.0f;
+			float4 LightAttenuation = float4(WholeSceneShadowing.xx, PerObjectShadowing.xx);
+		#else
+			LightData.ShadowedBits = 1;
+			LightData.ShadowMapChannelMask.x = 1;
+			#if TRANSLUCENCY_LIGHTING_SURFACE_FORWARDSHADING
+				GBufferData.PrecomputedShadowFactors.x = ComputeDirectionalLightStaticShadowing(WorldPosition).x;
+			#else
+				GBufferData.PrecomputedShadowFactors.x = 1;
+			#endif
+			float DynamicShadowFactor = ComputeDirectionalLightDynamicShadowing(WorldPosition, GBufferData.Depth);
+			float4 LightAttenuation = float4(DynamicShadowFactor.x, DynamicShadowFactor.x, 1, 1);
+		#endif
+		
+		uint LightingChannelMask = GetPrimitiveData(PrimitiveId).LightingChannelMask;
+		FDeferredLightingSplit NewLighting = PrLighting(WorldPosition, -CameraVector, GBufferData, 1, GBufferData.ShadingModelID, LightData, LightAttenuation, Dither, uint2(0, 0), RectTexture, OutDirectionalLightShadow);
+		FLATTEN
+		if ((DirectionalLightData.DirectionalLightShadowMapChannelMask >> 8) & LightingChannelMask)
+		{
+			DirectLighting.DiffuseLighting = DirectionalLightData.DirectionalLightColor.rgbb * (1.0 / PI);
+			DirectLighting.SpecularLighting = NewLighting.SpecularLighting;
+		}
+	}
+
+	return DirectLighting;
+}
+
+
+#if !DISABLE_FORWARD_LOCAL_LIGHTS
+FDeferredLightingSplit PrPointLight(uint GridIndex, float3 WorldPosition, float3 CameraVector, float4 DynamicShadowFactors, FGBufferData GBufferData, uint PrimitiveId, uint EyeIndex, float Dither, FRectTexture RectTexture)
+{
+	FDeferredLightingSplit DirectLighting;
+	DirectLighting.DiffuseLighting = 0;
+	DirectLighting.SpecularLighting = 0;
+
+	float SpecularScale = 1;
+	#if TRANSLUCENCY_ANY_VOLUMETRIC
+		SpecularScale = 0;
+	#endif
+
+	const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, EyeIndex);
+	const uint NumLocalLights = min(CulledLightsGrid.NumLocalLights, GetNumLocalLights(EyeIndex));
+
+	LOOP
+	for (uint LocalLightListIndex = 0; LocalLightListIndex < NumLocalLights; LocalLightListIndex++)
+	{
+		const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + LocalLightListIndex, EyeIndex);
+		 
+		FDeferredLightData LightData = (FDeferredLightData)0;
+		LightData.Position = LocalLight.LightPositionAndInvRadius.xyz;
+		LightData.InvRadius = LocalLight.LightPositionAndInvRadius.w;
+		LightData.Color = LocalLight.LightColorAndFalloffExponent.xyz;
+		LightData.FalloffExponent = LocalLight.LightColorAndFalloffExponent.w;
+		LightData.Direction = LocalLight.LightDirectionAndShadowMask.xyz;
+		LightData.SpotAngles = LocalLight.SpotAnglesAndSourceRadiusPacked.xy;
+		LightData.SourceRadius = LocalLight.SpotAnglesAndSourceRadiusPacked.z;
+		LightData.SourceLength = f16tof32(asuint(LocalLight.SpotAnglesAndSourceRadiusPacked.w));
+        LightData.Tangent = LocalLight.LightTangentAndSoftSourceRadius.xyz;
+        LightData.SoftSourceRadius = LocalLight.LightTangentAndSoftSourceRadius.w;
+		LightData.bInverseSquared = LightData.FalloffExponent == 0;
+		LightData.bRadialLight = true;
+		LightData.bSpotLight = LightData.SpotAngles.x > -2.0f;
+		LightData.SpecularScale = SpecularScale;
+
+		uint LightingChannelMask = GetPrimitiveData(PrimitiveId).LightingChannelMask;
+		uint LightTypeAndPackedShadowMapChannelMask = asuint(LocalLight.LightDirectionAndShadowMask.w);
+		uint LightType = LightTypeAndPackedShadowMapChannelMask >> 16;
+
+		LightData.ShadowedBits = (LightTypeAndPackedShadowMapChannelMask & 0xFF) != 0 ? 1 : 0;
+		LightData.ShadowMapChannelMask = UnpackShadowMapChannelMask(LightTypeAndPackedShadowMapChannelMask);
+		float4 PreviewShadowMapChannelMask = UnpackShadowMapChannelMask(LightTypeAndPackedShadowMapChannelMask >> 4);
+		float DynamicShadowing = dot(PreviewShadowMapChannelMask, DynamicShadowFactors);
+		float4 LightAttenuation = float4(1, 1, DynamicShadowing.x, DynamicShadowing.x);
+		float SurfaceShadow = 1.0f;
+		FDeferredLightingSplit NewLighting = PrLighting(WorldPosition, -CameraVector, GBufferData, 1, GBufferData.ShadingModelID, LightData, LightAttenuation, Dither, uint2(0, 0), RectTexture, SurfaceShadow);
+
+		FLATTEN
+		if ((LightTypeAndPackedShadowMapChannelMask >> 8) & LightingChannelMask)
+		{
+			DirectLighting.DiffuseLighting += NewLighting.DiffuseLighting;
+			DirectLighting.SpecularLighting += NewLighting.SpecularLighting;
+		}
+	}
+
+	return DirectLighting;
+}
+#endif // !DISABLE_FORWARD_LOCAL_LIGHTS
+
+void PrComputeIndirect(
+	FMaterialPixelParameters MaterialParameters, 
+	FVertexFactoryInterpolantsVSToPS Interpolants,
+	FBasePassInterpolantsVSToPS BasePassInterpolants,
+	VTPageTableResult LightmapVTPageTableResult,
+	FGBufferData GBuffer,
+	float3 DiffuseDir,
+	float3 VolumetricLightmapBrickTextureUVs,
+	inout float OutIndirectIrradianceLM,
+	inout float3 OutIndirectColorLM,
+	inout float OutIndirectIrradianceSL,
+	inout float3 OutIndirectColorSL)
+{
+	float2 SkyOcclusionUV = 0;
+	uint SkyOcclusionDataIndex = 0u;
+
+	#if PRECOMPUTED_IRRADIANCE_VOLUME_LIGHTING
+		#if TRANSLUCENCY_LIGHTING_VOLUMETRIC_NONDIRECTIONAL || TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_NONDIRECTIONAL
+			#if TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_NONDIRECTIONAL
+				FOneBandSHVectorRGB IrradianceSH;
+				IrradianceSH.R.V = BasePassInterpolants.VertexIndirectAmbient.x;
+				IrradianceSH.G.V = BasePassInterpolants.VertexIndirectAmbient.y;
+				IrradianceSH.B.V = BasePassInterpolants.VertexIndirectAmbient.z;
+			#else
+				FOneBandSHVectorRGB IrradianceSH = GetVolumetricLightmapSH1(VolumetricLightmapBrickTextureUVs);
+			#endif
+
+			FOneBandSHVector DiffuseTransferSH = CalcDiffuseTransferSH1(1);
+			OutIndirectColorLM = max(float3(0,0,0), DotSH1(IrradianceSH, DiffuseTransferSH)) / PI;
+		#else
+			#if TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_DIRECTIONAL
+				FThreeBandSHVectorRGB IrradianceSH = (FThreeBandSHVectorRGB)0;
+				IrradianceSH.R.V0 = BasePassInterpolants.VertexIndirectSH[0];
+				IrradianceSH.G.V0 = BasePassInterpolants.VertexIndirectSH[1];
+				IrradianceSH.B.V0 = BasePassInterpolants.VertexIndirectSH[2];
+			#elif TRANSLUCENCY_LIGHTING_VOLUMETRIC_DIRECTIONAL
+				FTwoBandSHVectorRGB IrradianceSH2 = GetVolumetricLightmapSH2(VolumetricLightmapBrickTextureUVs);
+				FThreeBandSHVectorRGB IrradianceSH = (FThreeBandSHVectorRGB)0;
+				IrradianceSH.R.V0 = IrradianceSH2.R.V;
+				IrradianceSH.G.V0 = IrradianceSH2.G.V;
+				IrradianceSH.B.V0 = IrradianceSH2.B.V;
+			#else
+				FThreeBandSHVectorRGB IrradianceSH = GetVolumetricLightmapSH3(VolumetricLightmapBrickTextureUVs);
+			#endif
+
+			FThreeBandSHVector DiffuseTransferSH = CalcDiffuseTransferSH3(DiffuseDir, 1);
+			OutIndirectColorLM = max(float3(0,0,0), DotSH3(IrradianceSH, DiffuseTransferSH)) / PI;
+		#endif
+
+	#elif CACHED_VOLUME_INDIRECT_LIGHTING
+		if (View.IndirectLightingCacheShowFlag > 0.0f)
+		{
+			float3 VolumeUVs = MaterialParameters.AbsoluteWorldPosition * IndirectLightingCache.IndirectLightingCachePrimitiveScale + IndirectLightingCache.IndirectLightingCachePrimitiveAdd;
+			VolumeUVs = clamp(VolumeUVs, IndirectLightingCache.IndirectLightingCacheMinUV, IndirectLightingCache.IndirectLightingCacheMaxUV);
+			float4 Vector0 = Texture3DSample(IndirectLightingCache.IndirectLightingCacheTexture0, IndirectLightingCache.IndirectLightingCacheTextureSampler0, VolumeUVs);
+			float4 Vector1 = Texture3DSample(IndirectLightingCache.IndirectLightingCacheTexture1, ILCSharedSampler1, VolumeUVs);
+			float4 Vector2 = Texture3DSample(IndirectLightingCache.IndirectLightingCacheTexture2, ILCSharedSampler2, VolumeUVs);
+
+			FTwoBandSHVectorRGB CachedSH;
+			CachedSH.R.V = float4(Vector0.x, Vector1.x, Vector2.x, Vector0.w);
+			CachedSH.G.V = float4(Vector0.y, Vector1.y, Vector2.y, Vector1.w);
+			CachedSH.B.V = float4(Vector0.z, Vector1.z, Vector2.z, Vector2.w);
+
+			FTwoBandSHVector DiffuseTransferSH = CalcDiffuseTransferSH(DiffuseDir, 1);
+			OutIndirectColorLM = max(half3(0,0,0), DotSH(CachedSH, DiffuseTransferSH)) / PI;
+		}
+	#elif CACHED_POINT_INDIRECT_LIGHTING 
+		if (View.IndirectLightingCacheShowFlag > 0.0f)
+		{
+		#if TRANSLUCENCY_LIGHTING_VOLUMETRIC_NONDIRECTIONAL
+			FOneBandSHVectorRGB PointIndirectLighting;
+			PointIndirectLighting.R.V = IndirectLightingCache.IndirectLightingSHCoefficients0[0].x;
+			PointIndirectLighting.G.V = IndirectLightingCache.IndirectLightingSHCoefficients0[1].x;
+			PointIndirectLighting.B.V = IndirectLightingCache.IndirectLightingSHCoefficients0[2].x;
+
+			FOneBandSHVector DiffuseTransferSH = CalcDiffuseTransferSH1(1);
+			OutIndirectColorLM = DotSH1(PointIndirectLighting, DiffuseTransferSH);
+		#else
+			FThreeBandSHVectorRGB PointIndirectLighting;
+			PointIndirectLighting.R.V0 = IndirectLightingCache.IndirectLightingSHCoefficients0[0];
+			PointIndirectLighting.R.V1 = IndirectLightingCache.IndirectLightingSHCoefficients1[0];
+			PointIndirectLighting.R.V2 = IndirectLightingCache.IndirectLightingSHCoefficients2[0];
+
+			PointIndirectLighting.G.V0 = IndirectLightingCache.IndirectLightingSHCoefficients0[1];
+			PointIndirectLighting.G.V1 = IndirectLightingCache.IndirectLightingSHCoefficients1[1];
+			PointIndirectLighting.G.V2 = IndirectLightingCache.IndirectLightingSHCoefficients2[1];
+
+			PointIndirectLighting.B.V0 = IndirectLightingCache.IndirectLightingSHCoefficients0[2];
+			PointIndirectLighting.B.V1 = IndirectLightingCache.IndirectLightingSHCoefficients1[2];
+			PointIndirectLighting.B.V2 = IndirectLightingCache.IndirectLightingSHCoefficients2[2];
+
+			FThreeBandSHVector DiffuseTransferSH = CalcDiffuseTransferSH3(DiffuseDir, 1);
+			OutIndirectColorLM = max(half3(0,0,0), DotSH3(PointIndirectLighting, DiffuseTransferSH));
+		#endif
+		}
+	#elif HQ_TEXTURE_LIGHTMAP
+		float2 LightmapUV0, LightmapUV1;
+		uint LightmapDataIndex;
+		GetLightMapCoordinates(Interpolants, LightmapUV0, LightmapUV1, LightmapDataIndex);
+		SkyOcclusionUV = LightmapUV0;
+		SkyOcclusionDataIndex = LightmapDataIndex;
+		float3 LightmapSubsurfaceLighting;
+		GetLightMapColorHQ(LightmapVTPageTableResult, LightmapUV0, LightmapUV1, LightmapDataIndex, DiffuseDir, MaterialParameters.SvPosition.xy, GBuffer.ShadingModelID, OutIndirectColorLM, LightmapSubsurfaceLighting);
+	#elif LQ_TEXTURE_LIGHTMAP
+		float2 LightmapUV0, LightmapUV1;
+		uint LightmapDataIndex;
+		GetLightMapCoordinates(Interpolants, LightmapUV0, LightmapUV1, LightmapDataIndex);
+		OutIndirectColorLM = GetLightMapColorLQ(LightmapUV0, LightmapUV1, LightmapDataIndex, DiffuseDir).rgb;
+	#endif
+
+	OutIndirectColorLM *= View.IndirectLightingColorScale;
+
+	#if HQ_TEXTURE_LIGHTMAP || LQ_TEXTURE_LIGHTMAP || CACHED_VOLUME_INDIRECT_LIGHTING || CACHED_POINT_INDIRECT_LIGHTING || PRECOMPUTED_IRRADIANCE_VOLUME_LIGHTING
+		OutIndirectIrradianceLM = Luminance(OutIndirectColorLM);
+	#endif
+
+	float3 SkySubsurfaceLighting;
+	GetSkyLighting(MaterialParameters, LightmapVTPageTableResult, GBuffer, DiffuseDir, SkyOcclusionUV, SkyOcclusionDataIndex, VolumetricLightmapBrickTextureUVs, OutIndirectColorSL, SkySubsurfaceLighting);
+	OutIndirectIrradianceSL = Luminance(OutIndirectColorSL);
+}
+
+
+void PrShading(inout MaterialFloat3 Color, inout float IndirectIrradiance, FMaterialPixelParameters MaterialParameters, FVertexFactoryInterpolantsVSToPS Interpolants, FBasePassInterpolantsVSToPS BasePassInterpolants, VTPageTableResult LightmapVTPageTableResult, FGBufferData GBuffer, float3 DiffuseDir,
+	float3 VolumetricLightmapBrickTextureUVs, uint EyeIndex)
+{
+	Color = 0.0;
+	IndirectIrradiance = 0.0;
+
+	FPrShadingValues Values = PrShadingValues_Make();
+	
+	uint GridIndex = ComputeLightGridCellIndex((uint2)(MaterialParameters.SvPosition.xy * View.LightProbeSizeRatioAndInvSizeRatio.zw - ResolvedView.ViewRectMin.xy), MaterialParameters.SvPosition.w, EyeIndex);
+	int SingleCaptureIndex = GetPrimitiveData(MaterialParameters.PrimitiveId).SingleCaptureIndex;
+	float2 NDC = MaterialParameters.ScreenPosition.xy / MaterialParameters.ScreenPosition.w;
+	float2 ScreenUV = NDC * ResolvedView.ScreenPositionScaleBias.xy + ResolvedView.ScreenPositionScaleBias.wz;
+	float2 NearestResolvedDepthScreenUV = CalculateNearestResolvedDepthScreenUV(ScreenUV, MaterialParameters.ScreenPosition.w);
+	float IndirectOcclusion = GetIndirectOcclusion(NearestResolvedDepthScreenUV, GBuffer);
+
+	float3 DiffuseColor = GBuffer.DiffuseColor;
+	GBuffer.DiffuseColor = 1.0;
+
+	
+	float3 IndirectColorLM = 0.0;
+	float IndirectIrradianceLM = 0.0;
+	float3 IndirectColorSL = 0.0;
+	float IndirectIrradianceSL = 0.0;
+
+	PrComputeIndirect(MaterialParameters, Interpolants, BasePassInterpolants, LightmapVTPageTableResult, GBuffer, DiffuseDir, VolumetricLightmapBrickTextureUVs, IndirectIrradianceLM, IndirectColorLM, IndirectIrradianceSL, IndirectColorSL);
+
+	#if PR_SHADER_LM_INDIRECT
+		Values.IndirectLayer.Color = IndirectColorLM * IndirectOcclusion;
+		Values.IndirectLayer.LayerModifier = DiffuseColor;
+		Values.IndirectLayer.bEnabled = true;
+		IndirectIrradiance += IndirectIrradianceLM;
+	#endif // PR_SHADER_LM_INDIRECT
+	#if ENABLE_SKY_LIGHT
+	#if PR_SHADER_SL_INDIRECT
+		Values.SkylightLayer.Color = IndirectColorSL * IndirectOcclusion;
+		Values.SkylightLayer.LayerModifier = DiffuseColor;
+		Values.SkylightLayer.bEnabled = true;
+		IndirectIrradiance += IndirectIrradianceSL;
+	#endif // PR_SHADER_SL_INDIRECT
+	#endif // ENABLE_SKY_LIGHT
+	
+	
+	
+
+	IndirectIrradiance *= IndirectOcclusion;
+
+	Values.DiffuseLayer.Color = GBuffer.BaseColor;
+	Values.DiffuseLayer.bEnabled = true;
+
+	FRectTexture RectTexture = InitRectTexture(ForwardLightData.DummyRectLightSourceTexture);
+	float4 DynamicShadowFactors = GetForwardDynamicShadowFactors(NearestResolvedDepthScreenUV);
+	float Dither = InterleavedGradientNoise(MaterialParameters.SvPosition.xy, View.StateFrameIndexMod8);
+	float3 DirectionalLightDirection = 0.0;
+	float Shadow = 1.0;
+
+	FDeferredLightingSplit DirectionalLight = PrDirectionalLight(MaterialParameters.AbsoluteWorldPosition, MaterialParameters.CameraVector, DynamicShadowFactors, GBuffer, MaterialParameters.PrimitiveId, EyeIndex, Dither, RectTexture, DirectionalLightDirection, Shadow);
+	
+	Values.DirectionalLightLayer.Color = DirectionalLight.DiffuseLighting.rgb;
+	Values.DirectionalLightLayer.LayerModifier = DiffuseColor;
+	Values.DirectionalLightLayer.bEnabled = true;
+	
+	Values.ShadowLayer.Color = Shadow * GBuffer.GBufferAO;
+	Values.ShadowLayer.bEnabled = true;
+
+	Values.SelfShadowLayer.Color = max(0, dot(DiffuseDir, DirectionalLightDirection));
+	Values.SelfShadowLayer.bEnabled = true;
+
+	#if !MATERIAL_FULLY_ROUGH
+		Values.SpecularLayer.Color = DirectionalLight.SpecularLighting.rgb;
+		Values.SpecularLayer.bEnabled = true;
+	#endif // !MATERIAL_FULLY_ROUGH
+
+	#if !MATERIAL_FULLY_ROUGH
+		Values.ReflectionLayer.Color = GetImageBasedReflectionLighting(MaterialParameters, GBuffer.Roughness, GBuffer.SpecularColor, IndirectIrradiance, GridIndex, SingleCaptureIndex, EyeIndex) * IndirectOcclusion;
+		Values.ReflectionLayer.bEnabled = true;
+	#endif // !MATERIAL_FULLY_ROUGH
+
+	
+	#if !DISABLE_FORWARD_LOCAL_LIGHTS
+		FDeferredLightingSplit PointLight = PrPointLight(GridIndex, MaterialParameters.AbsoluteWorldPosition, MaterialParameters.CameraVector, DynamicShadowFactors, GBuffer, MaterialParameters.PrimitiveId, EyeIndex, Dither, RectTexture);
+
+		Values.DynamicLightLayer.Color = PointLight.DiffuseLighting.rgb;
+		Values.DynamicLightLayer.LayerModifier = DiffuseColor;
+		Values.DynamicLightLayer.bEnabled = true;
+	
+		#if !FULLY_ROUGH
+			Values.DynamicLightSpecularLayer.Color = PointLight.SpecularLighting.rgb;
+			Values.DynamicLightSpecularLayer.bEnabled = true;
+		#endif // !FULLY_ROUGH
+	#endif // !DISABLE_FORWARD_LOCAL_LIGHTS
+	
+
+	GBuffer.DiffuseColor = DiffuseColor;
+
+	PrBlend(Color, Values);
+}
+
+#endif // PR_SHADER
