@@ -1,0 +1,30 @@
+# gitignore file for Unreal Engine
+# 2021, Emanuel Miglio
+
+# Ignore everything...
+*
+!*/
+
+# ...these essential folders...
+!Config/**
+!Content/**
+!Source/**
+!ThirdParty/**
+!Resources/**
+!Build/Android/project.properties
+Content/Characters/**
+
+# ...plugins excluding their binaries...
+!Plugins/**
+Plugins/**/Binaries/**
+Plugins/**/Intermediate/**
+
+# ...EOSSDK binaries...
+!Binaries/Win64/EOSSDK-Win64-Shipping.dll
+!Binaries/Android/BoltGame_Symbols_v1/**
+
+#...uproject file... (generally ignored because the annoying GUID on custom builds, uncomment to push plugin and module additions).
+!*.uproject
+
+# ...except this file...
+!.gitignore
