@@ -12,7 +12,6 @@
 !ThirdParty/**
 !Resources/**
 !Build/Android/project.properties
-Content/Characters/**
 
 # ...plugins excluding their binaries...
 !Plugins/**

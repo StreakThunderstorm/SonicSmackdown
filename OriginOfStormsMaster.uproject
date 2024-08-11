@@ -309,6 +309,11 @@
 			"Name": "CompilerBooster",
 			"Enabled": false,
 			"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/content/15afae52463a44cb85a3176c003c8fb1"
+		},
+		{
+			"Name": "CleanProject",
+			"Enabled": true,
+			"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/content/13d45e838b954d67b9d5d01fa82635d9"
 		}
 	]
 }
