@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
-#include "Input/OOSPlayerController.h"
+#include "OriginOfStormsMaster/Input/OOSPlayerController.h"
 #include "MotionProcessor.generated.h"
 
 /**

@@ -1,139 +1,234 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2023 Rafael Marques Almeida. All Rights Reserved.
 #include "RMAMirrorAnimationAnimSequenceProxy.h"
+#include "RMAMirrorAnimationAnimSequenceCustomData.h"
 #include "RMAMirrorAnimationMirrorTable.h"
-#include "../Public/RMAMirrorAnimationAnimSequenceCustomData.h"
+#include "AnimPose.h"
 
-inline USkeletalMesh* UAnimationAsset::GetPreviewMesh(bool bFindIfNotSet)
+TArray<FBoneAnimationTrack> GetAnimationData(UAnimSequence* Seq)
 {
 
-#if WITH_EDITORONLY_DATA
+	TArray<FBoneAnimationTrack> LResult;
 
-	USkeletalMesh* PreviewMesh = PreviewSkeletalMesh.LoadSynchronous();
-
-	//If Somehow Skeleton Changes, Just Nullify It. 
-	if (PreviewMesh && PreviewMesh->GetSkeleton() != Skeleton)
+	if (Seq)
 	{
 
-		PreviewMesh = nullptr;
-		SetPreviewMesh(nullptr);
+		TMap<FName, FBoneAnimationTrack> LMap;
+
+		for (int32 LFrame = 0; LFrame < Seq->GetNumberOfSampledKeys(); LFrame++)
+		{
+
+			FAnimPose LPose;
+			UAnimPoseExtensions::GetAnimPoseAtFrame(Seq, LFrame, FAnimPoseEvaluationOptions(), LPose);
+
+			FPermissionListOwners LBones;
+			UAnimPoseExtensions::GetBoneNames(LPose, LBones);
+
+			for (auto LBone : LBones)
+			{
+
+				const auto LTransform = UAnimPoseExtensions::GetBonePose(LPose, LBone);
+				auto LTrack = LMap.FindOrAdd(LBone);
+				if (LTrack.Name.IsNone())
+				{
+					LTrack.Name = LBone;
+				}
+
+				LTrack.InternalTrackData.PosKeys.Add(FVector3f(LTransform.GetLocation()));
+				LTrack.InternalTrackData.RotKeys.Add(FQuat4f(LTransform.GetRotation()));
+				LTrack.InternalTrackData.ScaleKeys.Add(FVector3f(LTransform.GetScale3D()));
+
+				LMap.Add(LBone, LTrack);
+
+			}
+
+		}
+
+		LMap.GenerateValueArray(LResult);
 
 	}
 
-	return PreviewMesh;
-
-#else
-
-	return nullptr;
-
-#endif
+	return LResult;
 
 }
 
-inline USkeletalMesh* UAnimationAsset::GetPreviewMesh() const
+FTransform GetRefPose(USkeleton* Skeleton, FName BoneName)
 {
 
-#if WITH_EDITORONLY_DATA
+	FTransform LResult;
 
-	if (!PreviewSkeletalMesh.IsValid())
+	if (Skeleton && !BoneName.IsNone())
 	{
 
-		PreviewSkeletalMesh.LoadSynchronous();
+		FAnimPose LPose;
+		UAnimPoseExtensions::GetReferencePose(Skeleton, LPose);
+		LResult = UAnimPoseExtensions::GetRefBonePose(LPose, BoneName);
 
 	}
 
-	return PreviewSkeletalMesh.Get();
-
-#else
-
-	return nullptr;
-
-#endif
-
-}
-
-inline void UAnimationAsset::SetPreviewMesh(USkeletalMesh* PreviewMesh, bool bMarkAsDirty /*=true*/)
-{
-
-#if WITH_EDITORONLY_DATA
-
-	if (bMarkAsDirty)
-	{
-
-		Modify();
-
-	}
-
-	PreviewSkeletalMesh = PreviewMesh;
-
-#endif
+	return LResult;
 
 }
 
 bool URMAMirrorAnimationAnimSequenceProxy::MirrorAnimation(URMAMirrorAnimationMirrorTable& MirrorTable)
 {
-	
-	if (MirrorTable.Skeleton)
+
+	if (GetDataModel() && GetSkeleton() && MirrorTable.Skeleton)
 	{
 
-		ResetAnimation();
-
-		URMAMirrorAnimationAnimSequenceCustomData* LCustomData = Cast<URMAMirrorAnimationAnimSequenceCustomData>(GetAssetUserDataOfClass(URMAMirrorAnimationAnimSequenceCustomData::StaticClass()));
-
+		auto LCustomData = Cast<URMAMirrorAnimationAnimSequenceCustomData>(GetAssetUserDataOfClass(URMAMirrorAnimationAnimSequenceCustomData::StaticClass()));
 		if (!LCustomData)
 		{
 
-			LCustomData = NewObject<URMAMirrorAnimationAnimSequenceCustomData>();
+			LCustomData = NewObject<URMAMirrorAnimationAnimSequenceCustomData>(this);
 
 		}
 
 		if (LCustomData)
 		{
 
-			if (LCustomData->RawAnimationData.Num() <= 0)
+			ResetAnimation();
+			if (LCustomData->AnimationData.Num() <= 0)
 			{
 
-				LCustomData->RawAnimationData = RawAnimationData;
+				LCustomData->AnimationData = GetAnimationData(this);
+				LCustomData->MirrorTable = &MirrorTable;
+				AddAssetUserData(LCustomData);
 
 			}
 
-			LCustomData->MirrorTable = &MirrorTable;
-			AddAssetUserData(LCustomData);
-
-			//Animation Data
-			TArray<FRawAnimSequenceTrack> LAnimationData = RawAnimationData;
-
-			for (int LFrame = 0; LFrame < GetNumberOfFrames(); LFrame++)
+			if (LCustomData->AnimationData.Num() > 0)
 			{
 
-				//SingleBone
-				for (int LSingleBoneIndex = 0; LSingleBoneIndex < MirrorTable.SingleBoneConfig.Num(); LSingleBoneIndex++)
+				//Animation Data
+				auto LAnimationData = LCustomData->AnimationData;
+				const auto LAnimationDataConst = LAnimationData;
+
+				//Getter Bone Index
+				auto GetBoneIndex = [&](FName Name) -> int
 				{
 
-					int LBoneIndex = AnimationTrackNames.Find(MirrorTable.SingleBoneConfig[LSingleBoneIndex].BoneName);
-
-					if (LBoneIndex >= 0)
+					for (int LIndex = 0; LIndex < LAnimationData.Num(); LIndex++)
 					{
 
-						const FTransform LBoneRefTransform = GetSkeleton()->GetRefLocalPoses()[GetSkeletonIndexFromRawDataTrackIndex(LBoneIndex)];
-
-						if (RawAnimationData[LBoneIndex].RotKeys.IsValidIndex(LFrame))
+						if (LAnimationData[LIndex].Name == Name)
 						{
 
-							//Mirror Rotation
-							LAnimationData[LBoneIndex].RotKeys[LFrame] = MirrorTable.MirrorRotation(RawAnimationData[LBoneIndex].RotKeys[LFrame],
-								LBoneRefTransform.GetRotation(), MirrorTable.SingleBoneConfig[LSingleBoneIndex]);
+							return LIndex;
 
 						}
 
-						if (MirrorTable.MirrorLocationData)
+					}
+
+					return -1;
+
+				};
+
+				//Track Names
+				TArray<FName> LTrackNames;
+				GetDataModel()->GetBoneTrackNames(LTrackNames);
+
+				//Mirror
+				for (int32 LKey = 0; LKey < GetNumberOfSampledKeys(); LKey++)
+				{
+
+					//Single Bone
+					for (int LSingleBoneIndex = 0; LSingleBoneIndex < MirrorTable.SingleBoneConfig.Num(); LSingleBoneIndex++)
+					{
+
+						const auto LBoneConfig = MirrorTable.SingleBoneConfig[LSingleBoneIndex];
+						const auto LBoneIndex = GetBoneIndex(LBoneConfig.BoneName);
+						if (LBoneIndex >= 0)
 						{
 
-							if (RawAnimationData[LBoneIndex].PosKeys.IsValidIndex(LFrame))
+							const auto LBoneRefTransform = GetRefPose(GetSkeleton(), LBoneConfig.BoneName);
+
+							if (LAnimationDataConst[LBoneIndex].InternalTrackData.RotKeys.IsValidIndex(LKey))
+							{
+
+								//Mirror Rotation
+								LAnimationData[LBoneIndex].InternalTrackData.RotKeys[LKey] = MirrorTable.MirrorRotation(LAnimationDataConst[LBoneIndex].InternalTrackData.RotKeys[LKey],
+									FQuat4f(LBoneRefTransform.GetRotation()), LBoneConfig);
+
+							}
+
+							if (MirrorTable.MirrorLocationData)
+							{
+
+								if (LAnimationDataConst[LBoneIndex].InternalTrackData.PosKeys.IsValidIndex(LKey))
+								{
+
+									//Mirror Location
+									LAnimationData[LBoneIndex].InternalTrackData.PosKeys[LKey] = FVector3f(MirrorTable.MirrorLocation(FVector(LAnimationDataConst[LBoneIndex].InternalTrackData.PosKeys[LKey]),
+										LBoneRefTransform.GetLocation(), FQuat4f(LBoneRefTransform.GetRotation()), LBoneConfig));
+
+								}
+
+							}
+
+						}
+
+					}
+
+					//Double Bone
+					for (int LDoubleBoneIndex = 0; LDoubleBoneIndex < MirrorTable.DoubleBoneConfig.Num(); LDoubleBoneIndex++)
+					{
+
+						const auto LBoneConfig = MirrorTable.DoubleBoneConfig[LDoubleBoneIndex];
+						const auto LBoneAIndex = GetBoneIndex(LBoneConfig.BoneAName);
+						const auto LBoneBIndex = GetBoneIndex(LBoneConfig.BoneBName);
+						if (LBoneAIndex > 0 && LBoneBIndex > 0)
+						{
+
+							if (LKey == 0)
+							{
+
+								LAnimationData[LBoneAIndex].InternalTrackData.RotKeys.Empty();
+								LAnimationData[LBoneBIndex].InternalTrackData.RotKeys.Empty();
+								LAnimationData[LBoneAIndex].InternalTrackData.PosKeys.Empty();
+								LAnimationData[LBoneBIndex].InternalTrackData.PosKeys.Empty();
+								LAnimationData[LBoneAIndex].InternalTrackData.RotKeys.SetNum(LAnimationDataConst[LBoneBIndex].InternalTrackData.RotKeys.Num());
+								LAnimationData[LBoneBIndex].InternalTrackData.RotKeys.SetNum(LAnimationDataConst[LBoneAIndex].InternalTrackData.RotKeys.Num());
+								LAnimationData[LBoneAIndex].InternalTrackData.PosKeys.SetNum(LAnimationDataConst[LBoneBIndex].InternalTrackData.PosKeys.Num());
+								LAnimationData[LBoneBIndex].InternalTrackData.PosKeys.SetNum(LAnimationDataConst[LBoneAIndex].InternalTrackData.PosKeys.Num());
+
+							}
+
+							const auto LBoneARefTransform = GetRefPose(GetSkeleton(), LBoneConfig.BoneAName);
+							const auto LBoneBRefTransform = GetRefPose(GetSkeleton(), LBoneConfig.BoneBName);
+
+							if (LAnimationDataConst[LBoneAIndex].InternalTrackData.RotKeys.IsValidIndex(LKey))
+							{
+
+								//Mirror Rotation
+								LAnimationData[LBoneBIndex].InternalTrackData.RotKeys[LKey] = MirrorTable.MirrorRotationToOtherPose(LAnimationDataConst[LBoneAIndex].InternalTrackData.RotKeys[LKey],
+									FQuat4f(LBoneARefTransform.GetRotation()), FQuat4f(LBoneBRefTransform.GetRotation()), LBoneConfig);
+
+							}
+
+							if (LAnimationDataConst[LBoneBIndex].InternalTrackData.RotKeys.IsValidIndex(LKey))
+							{
+
+								//Mirror Rotation
+								LAnimationData[LBoneAIndex].InternalTrackData.RotKeys[LKey] = MirrorTable.MirrorRotationToOtherPose(LAnimationDataConst[LBoneBIndex].InternalTrackData.RotKeys[LKey],
+									FQuat4f(LBoneBRefTransform.GetRotation()), FQuat4f(LBoneARefTransform.GetRotation()), LBoneConfig);
+
+							}
+
+							if (LAnimationDataConst[LBoneAIndex].InternalTrackData.PosKeys.IsValidIndex(LKey))
 							{
 
 								//Mirror Location
-								LAnimationData[LBoneIndex].PosKeys[LFrame] = MirrorTable.MirrorLocation(RawAnimationData[LBoneIndex].PosKeys[LFrame],
-									LBoneRefTransform.GetLocation(), LBoneRefTransform.GetRotation(), MirrorTable.SingleBoneConfig[LSingleBoneIndex]);
+								LAnimationData[LBoneBIndex].InternalTrackData.PosKeys[LKey] = FVector3f(MirrorTable.MirrorLocationToOtherPose(FVector(LAnimationDataConst[LBoneAIndex].InternalTrackData.PosKeys[LKey]), LBoneARefTransform.GetLocation(),
+									FQuat4f(LBoneARefTransform.GetRotation()), LBoneBRefTransform.GetLocation(), FQuat4f(LBoneBRefTransform.GetRotation()), LBoneConfig));
+
+							}
+
+							if (LAnimationDataConst[LBoneBIndex].InternalTrackData.PosKeys.IsValidIndex(LKey))
+							{
+
+								//Mirror Location
+								LAnimationData[LBoneAIndex].InternalTrackData.PosKeys[LKey] = FVector3f(MirrorTable.MirrorLocationToOtherPose(FVector(LAnimationDataConst[LBoneBIndex].InternalTrackData.PosKeys[LKey]), LBoneBRefTransform.GetLocation(),
+									FQuat4f(LBoneBRefTransform.GetRotation()), LBoneARefTransform.GetLocation(), FQuat4f(LBoneARefTransform.GetRotation()), LBoneConfig));
 
 							}
 
@@ -143,80 +238,24 @@ bool URMAMirrorAnimationAnimSequenceProxy::MirrorAnimation(URMAMirrorAnimationMi
 
 				}
 
-				//DoubleBone
-				for (int LDoubleBoneIndex = 0; LDoubleBoneIndex < MirrorTable.DoubleBoneConfig.Num(); LDoubleBoneIndex++)
+				//Controller Scoped Bracket
+				//IAnimationDataController::FScopedBracket LControllerSB(GetController(), FText::FromString("Mirroring Animation"), false);
+
+				//Apply Animation Data
+				for (int32 LTrack = 0; LTrack < LAnimationDataConst.Num(); LTrack++)
 				{
 
-					int LBoneAIndex = AnimationTrackNames.Find(MirrorTable.DoubleBoneConfig[LDoubleBoneIndex].BoneAName);
-					int LBoneBIndex = AnimationTrackNames.Find(MirrorTable.DoubleBoneConfig[LDoubleBoneIndex].BoneBName);
-
-					if (LBoneAIndex > 0 && LBoneBIndex > 0)
-					{
-
-						if (LFrame == 0)
-						{
-
-							LAnimationData[LBoneAIndex].RotKeys.Empty();
-							LAnimationData[LBoneBIndex].RotKeys.Empty();
-							LAnimationData[LBoneAIndex].PosKeys.Empty();
-							LAnimationData[LBoneBIndex].PosKeys.Empty();
-							LAnimationData[LBoneAIndex].RotKeys.SetNum(RawAnimationData[LBoneBIndex].RotKeys.Num());
-							LAnimationData[LBoneBIndex].RotKeys.SetNum(RawAnimationData[LBoneAIndex].RotKeys.Num());
-							LAnimationData[LBoneAIndex].PosKeys.SetNum(RawAnimationData[LBoneBIndex].PosKeys.Num());
-							LAnimationData[LBoneBIndex].PosKeys.SetNum(RawAnimationData[LBoneAIndex].PosKeys.Num());
-
-						}
-
-						const FTransform LBoneARefTransform = GetSkeleton()->GetRefLocalPoses()[GetSkeletonIndexFromRawDataTrackIndex(LBoneAIndex)];
-						const FTransform LBoneBRefTransform = GetSkeleton()->GetRefLocalPoses()[GetSkeletonIndexFromRawDataTrackIndex(LBoneBIndex)];
-
-						if (RawAnimationData[LBoneAIndex].RotKeys.IsValidIndex(LFrame))
-						{
-
-							//Mirror Rotation
-							LAnimationData[LBoneBIndex].RotKeys[LFrame] = MirrorTable.MirrorRotationToOtherPose(RawAnimationData[LBoneAIndex].RotKeys[LFrame],
-								LBoneARefTransform.GetRotation(), LBoneBRefTransform.GetRotation(), MirrorTable.DoubleBoneConfig[LDoubleBoneIndex]);
-
-						}
-
-						if (RawAnimationData[LBoneBIndex].RotKeys.IsValidIndex(LFrame))
-						{
-
-							//Mirror Rotation
-							LAnimationData[LBoneAIndex].RotKeys[LFrame] = MirrorTable.MirrorRotationToOtherPose(RawAnimationData[LBoneBIndex].RotKeys[LFrame],
-								LBoneBRefTransform.GetRotation(), LBoneARefTransform.GetRotation(), MirrorTable.DoubleBoneConfig[LDoubleBoneIndex]);
-
-						}
-
-						if (RawAnimationData[LBoneAIndex].PosKeys.IsValidIndex(LFrame))
-						{
-
-							//Mirror Location
-							LAnimationData[LBoneBIndex].PosKeys[LFrame] = MirrorTable.MirrorLocationToOtherPose(RawAnimationData[LBoneAIndex].PosKeys[LFrame], LBoneARefTransform.GetLocation(),
-								LBoneARefTransform.GetRotation(), LBoneBRefTransform.GetLocation(), LBoneBRefTransform.GetRotation(), MirrorTable.DoubleBoneConfig[LDoubleBoneIndex]);
-
-						}
-
-						if (RawAnimationData[LBoneBIndex].PosKeys.IsValidIndex(LFrame))
-						{
-
-							//Mirror Location
-							LAnimationData[LBoneAIndex].PosKeys[LFrame] = MirrorTable.MirrorLocationToOtherPose(RawAnimationData[LBoneBIndex].PosKeys[LFrame], LBoneBRefTransform.GetLocation(),
-								LBoneBRefTransform.GetRotation(), LBoneARefTransform.GetLocation(), LBoneARefTransform.GetRotation(), MirrorTable.DoubleBoneConfig[LDoubleBoneIndex]);
-
-						}
-
-					}
+					GetController().SetBoneTrackKeys(LAnimationData[LTrack].Name, LAnimationData[LTrack].InternalTrackData.PosKeys,
+						LAnimationData[LTrack].InternalTrackData.RotKeys, LAnimationData[LTrack].InternalTrackData.ScaleKeys, false);
 
 				}
 
+				//Cache Derived Data
+				CacheDerivedDataForCurrentPlatform();
+
+				return true;
+
 			}
-
-			//Apply Animation Data
-			RawAnimationData = LAnimationData;
-			SourceRawAnimationData = LAnimationData;
-
-			return true;
 
 		}
 
@@ -228,19 +267,25 @@ bool URMAMirrorAnimationAnimSequenceProxy::MirrorAnimation(URMAMirrorAnimationMi
 
 void URMAMirrorAnimationAnimSequenceProxy::ResetAnimation()
 {
-
-	URMAMirrorAnimationAnimSequenceCustomData* LCustomData = Cast<URMAMirrorAnimationAnimSequenceCustomData>(GetAssetUserDataOfClass(URMAMirrorAnimationAnimSequenceCustomData::StaticClass()));
-
-	if (LCustomData)
+	
+	auto LCustomData = Cast<URMAMirrorAnimationAnimSequenceCustomData>(GetAssetUserDataOfClass(URMAMirrorAnimationAnimSequenceCustomData::StaticClass()));
+	if (LCustomData && LCustomData->AnimationData.Num() > 0)
 	{
 
-		if (LCustomData->RawAnimationData.Num() > 0)
+		//Controller Scoped Bracket
+		IAnimationDataController::FScopedBracket LControllerSB(GetController(), FText::FromString("Reseting Animation"), false);
+
+		//Apply Animation Data
+		for (int32 LTrack = 0; LTrack < LCustomData->AnimationData.Num(); LTrack++)
 		{
 
-			RawAnimationData = LCustomData->RawAnimationData;
-			SourceRawAnimationData = LCustomData->RawAnimationData;
+			GetController().SetBoneTrackKeys(LCustomData->AnimationData[LTrack].Name, LCustomData->AnimationData[LTrack].InternalTrackData.PosKeys,
+				LCustomData->AnimationData[LTrack].InternalTrackData.RotKeys, LCustomData->AnimationData[LTrack].InternalTrackData.ScaleKeys, false);
 
 		}
+
+		//Cache Derived Data
+		CacheDerivedDataForCurrentPlatform();
 
 	}
 

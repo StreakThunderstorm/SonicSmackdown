@@ -1,6 +1,7 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2023 Rafael Marques Almeida. All Rights Reserved.
 #include "RMAMirrorAnimationMirrorTable.h"
 #include "RMAMirrorAnimation.h"
+#include "UObject/ObjectSaveContext.h"
 
 URMAMirrorAnimationMirrorTable::URMAMirrorAnimationMirrorTable()
 {
@@ -29,12 +30,11 @@ void URMAMirrorAnimationMirrorTable::PostLoad()
 
 }
 
-void URMAMirrorAnimationMirrorTable::PreSave(const class ITargetPlatform* TargetPlatform)
+void URMAMirrorAnimationMirrorTable::PreSave(FObjectPreSaveContext SaveContext)
 {
 
 	SetFileVersion();
-
-	Super::PreSave(TargetPlatform);
+	Super::PreSave(SaveContext);
 
 }
 
@@ -313,11 +313,11 @@ bool URMAMirrorAnimationMirrorTable::FindDoubleBone(const FString& BoneName, FSt
 
 }
 
-FVector URMAMirrorAnimationMirrorTable::MirrorLocation(const FVector& Location, const FVector& RefLocation, const FQuat& RefRotation, const FRMAMirrorAnimationSingleBoneConfig& BoneConfig)
+FVector URMAMirrorAnimationMirrorTable::MirrorLocation(const FVector& Location, const FVector& RefLocation, const FQuat4f& RefRotation, const FRMAMirrorAnimationSingleBoneConfig& BoneConfig)
 {
 
 	FVector LLocationResult = Location - RefLocation;
-	LLocationResult = RefRotation.UnrotateVector(LLocationResult);
+	LLocationResult = FVector(RefRotation.UnrotateVector(FVector3f(LLocationResult)));
 
 	switch (BoneConfig.MirrorAxis)
 	{
@@ -334,29 +334,29 @@ FVector URMAMirrorAnimationMirrorTable::MirrorLocation(const FVector& Location, 
 
 	}
 
-	LLocationResult = RefRotation.RotateVector(LLocationResult);
+	LLocationResult = FVector(RefRotation.RotateVector(FVector3f(LLocationResult)));
 	LLocationResult = RefLocation + LLocationResult;
 
 	return LLocationResult;
 
 }
 
-FQuat URMAMirrorAnimationMirrorTable::MirrorRotation(const FQuat& Rotation, const FQuat& RefRotation, const FRMAMirrorAnimationSingleBoneConfig& BoneConfig)
+FQuat4f URMAMirrorAnimationMirrorTable::MirrorRotation(const FQuat4f& Rotation, const FQuat4f& RefRotation, const FRMAMirrorAnimationSingleBoneConfig& BoneConfig)
 {
 
-	FQuat LRotationResult = RefRotation.Inverse() * Rotation;
+	FQuat4f LRotationResult = RefRotation.Inverse() * Rotation;
 
 	switch (BoneConfig.MirrorAxis)
 	{
 
 	case ERMAMirrorAnimationAxis::AxisX:
-		LRotationResult = FQuat(LRotationResult.X, -LRotationResult.Y, -LRotationResult.Z, LRotationResult.W);
+		LRotationResult = FQuat4f(LRotationResult.X, -LRotationResult.Y, -LRotationResult.Z, LRotationResult.W);
 		break;
 	case ERMAMirrorAnimationAxis::AxisY:
-		LRotationResult = FQuat(-LRotationResult.X, LRotationResult.Y, -LRotationResult.Z, LRotationResult.W);
+		LRotationResult = FQuat4f(-LRotationResult.X, LRotationResult.Y, -LRotationResult.Z, LRotationResult.W);
 		break;
 	case ERMAMirrorAnimationAxis::AxisZ:
-		LRotationResult = FQuat(-LRotationResult.X, -LRotationResult.Y, LRotationResult.Z, LRotationResult.W);
+		LRotationResult = FQuat4f(-LRotationResult.X, -LRotationResult.Y, LRotationResult.Z, LRotationResult.W);
 		break;
 
 	}
@@ -367,7 +367,7 @@ FQuat URMAMirrorAnimationMirrorTable::MirrorRotation(const FQuat& Rotation, cons
 
 }
 
-FVector URMAMirrorAnimationMirrorTable::MirrorLocationToOtherPose(const FVector& SourceLocation, const FVector& SourceRefLocation, const FQuat& SourceRefRotation, const FVector& TargetRefLocation, const FQuat& TargetRefRotation, const FRMAMirrorAnimationDoubleBoneConfig& BoneConfig)
+FVector URMAMirrorAnimationMirrorTable::MirrorLocationToOtherPose(const FVector& SourceLocation, const FVector& SourceRefLocation, const FQuat4f& SourceRefRotation, const FVector& TargetRefLocation, const FQuat4f& TargetRefRotation, const FRMAMirrorAnimationDoubleBoneConfig& BoneConfig)
 {
 
 	FVector LLocationResult = (SourceLocation - SourceRefLocation);
@@ -396,23 +396,23 @@ FVector URMAMirrorAnimationMirrorTable::MirrorLocationToOtherPose(const FVector&
 
 }
 
-FQuat URMAMirrorAnimationMirrorTable::MirrorRotationToOtherPose(const FQuat& SourceRotation, const FQuat& SourceRefRotation, const FQuat& TargetRefRotation, const FRMAMirrorAnimationDoubleBoneConfig& BoneConfig)
+FQuat4f URMAMirrorAnimationMirrorTable::MirrorRotationToOtherPose(const FQuat4f& SourceRotation, const FQuat4f& SourceRefRotation, const FQuat4f& TargetRefRotation, const FRMAMirrorAnimationDoubleBoneConfig& BoneConfig)
 {
 
-	FQuat LRotationResult = (SourceRefRotation.Inverse() * SourceRotation);
+	FQuat4f LRotationResult = (SourceRefRotation.Inverse() * SourceRotation);
 
 	switch ((BoneConfig.RotationMirrorAxis != ERMAMirrorAnimationAxisWithNull::AxisNull) 
 		? BoneConfig.RotationMirrorAxis : RotationMirrorAxis)
 	{
 
 	case ERMAMirrorAnimationAxisWithNull::AxisX:
-		LRotationResult = FQuat(LRotationResult.X, -LRotationResult.Y, -LRotationResult.Z, LRotationResult.W);
+		LRotationResult = FQuat4f(LRotationResult.X, -LRotationResult.Y, -LRotationResult.Z, LRotationResult.W);
 		break;
 	case ERMAMirrorAnimationAxisWithNull::AxisY:
-		LRotationResult = FQuat(-LRotationResult.X, LRotationResult.Y, -LRotationResult.Z, LRotationResult.W);
+		LRotationResult = FQuat4f(-LRotationResult.X, LRotationResult.Y, -LRotationResult.Z, LRotationResult.W);
 		break;
 	case ERMAMirrorAnimationAxisWithNull::AxisZ:
-		LRotationResult = FQuat(-LRotationResult.X, -LRotationResult.Y, LRotationResult.Z, LRotationResult.W);
+		LRotationResult = FQuat4f(-LRotationResult.X, -LRotationResult.Y, LRotationResult.Z, LRotationResult.W);
 		break;
 	default:
 		break;
@@ -420,7 +420,6 @@ FQuat URMAMirrorAnimationMirrorTable::MirrorRotationToOtherPose(const FQuat& Sou
 	}
 
 	LRotationResult = TargetRefRotation * LRotationResult;
-
 	return LRotationResult;
 
 }

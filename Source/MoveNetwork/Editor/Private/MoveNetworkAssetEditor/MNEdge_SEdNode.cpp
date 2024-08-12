@@ -4,6 +4,7 @@
 #include "Widgets/SToolTip.h"
 #include "SGraphPanel.h"
 #include "EdGraphSchema_K2.h"
+#include "EditorStyleSet.h"
 #include "MNNode_EdNode.h"
 #include "MNEdge_EdNode.h"
 #include "MNConnectionDrawingPolicy.h"

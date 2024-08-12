@@ -267,7 +267,7 @@ float UOOSHitbox::GetDirection()
 	return Direction;
 }
 
-void UOOSHitbox::TryHit(FOOSOverlapInfo OverlapInfo)
+void UOOSHitbox::TryHit(FOOSOverlapInfo InOverlapInfo)
 {
 	if (FPOwner->Opponent->IsTransforming() || (Damage == 0 && bAntiProjectile && !bBurst && !bAutoPerformChildMove) || (FPOwner->GrabType == EOOSGrab::OOSGR_Air && FPOwner->Opponent->MovementComponent->bOnGround) || (FPOwner->GrabType == EOOSGrab::OOSGR_Ground && !FPOwner->Opponent->MovementComponent->bOnGround))
 	{
@@ -334,7 +334,7 @@ void UOOSHitbox::TryHit(FOOSOverlapInfo OverlapInfo)
 
 		// Charging hit FX.
 		if (FPOwner->Opponent->TransformAbsorbParticle)
-			UGameplayStatics::SpawnEmitterAtLocation(FPOwner->GetWorld(), FPOwner->Opponent->TransformAbsorbParticle, OverlapInfo.ImpactPoint, FRotator::ZeroRotator, true);
+			UGameplayStatics::SpawnEmitterAtLocation(FPOwner->GetWorld(), FPOwner->Opponent->TransformAbsorbParticle, InOverlapInfo.ImpactPoint, FRotator::ZeroRotator, true);
 
 		if (FPOwner->Opponent->TransformAbsorbSound)
 			UGameplayStatics::PlaySound2D(FPOwner->GetWorld(), FPOwner->Opponent->TransformAbsorbSound);
@@ -540,7 +540,7 @@ void UOOSHitbox::TryHit(FOOSOverlapInfo OverlapInfo)
 			if (bCounter)
 			{
 				if(FPOwner->TechParticle)
-					UGameplayStatics::SpawnEmitterAtLocation(FPOwner->GetWorld(), FPOwner->TechParticle, OverlapInfo.ImpactPoint, FRotator::ZeroRotator, true);
+					UGameplayStatics::SpawnEmitterAtLocation(FPOwner->GetWorld(), FPOwner->TechParticle, InOverlapInfo.ImpactPoint, FRotator::ZeroRotator, true);
 
 				if(FPOwner->TechSound)
 					UGameplayStatics::PlaySound2D(FPOwner->GetWorld(), FPOwner->TechSound);
@@ -549,7 +549,7 @@ void UOOSHitbox::TryHit(FOOSOverlapInfo OverlapInfo)
 			{
 				// Non blocked hit FX
 				if (HitEffect)
-					UGameplayStatics::SpawnEmitterAtLocation(FPOwner->GetWorld(), HitEffect, OverlapInfo.ImpactPoint, FRotator::ZeroRotator, true);
+					UGameplayStatics::SpawnEmitterAtLocation(FPOwner->GetWorld(), HitEffect, InOverlapInfo.ImpactPoint, FRotator::ZeroRotator, true);
 
 				if (HitSound)
 					UGameplayStatics::PlaySound2D(FPOwner->GetWorld(), HitSound);
@@ -576,7 +576,7 @@ void UOOSHitbox::TryHit(FOOSOverlapInfo OverlapInfo)
 
 			// Blocked hit FX
 			if (FPOwner->BlockParticle)
-				UGameplayStatics::SpawnEmitterAtLocation(FPOwner->GetWorld(), FPOwner->BlockParticle, OverlapInfo.ImpactPoint, UKismetMathLibrary::MakeRotFromX((OverlapInfo.ImpactPoint - FPOwner->GetActorLocation())), true);
+				UGameplayStatics::SpawnEmitterAtLocation(FPOwner->GetWorld(), FPOwner->BlockParticle, InOverlapInfo.ImpactPoint, UKismetMathLibrary::MakeRotFromX((InOverlapInfo.ImpactPoint - FPOwner->GetActorLocation())), true);
 
 			if (FPOwner->BlockSound)
 				UGameplayStatics::PlaySound2D(FPOwner->GetWorld(), FPOwner->BlockSound);
@@ -589,14 +589,14 @@ void UOOSHitbox::TryHit(FOOSOverlapInfo OverlapInfo)
 		}
 	}
 
-	OnOpponentPostHit.Broadcast(OverlapInfo);
+	OnOpponentPostHit.Broadcast(InOverlapInfo);
 
 }
 
-void UOOSHitbox::SetTransformOnHit(bool bBlocked, int Damage, float OwnMult, float OppMult)
+void UOOSHitbox::SetTransformOnHit(bool bBlocked, int InDamage, float OwnMult, float OppMult)
 {
 	// Convert the damage to a percentage of max hp
-	float DamagePercent = Damage / (float)FPOwner->Opponent->MaxHealth;
+	float DamagePercent = InDamage / (float)FPOwner->Opponent->MaxHealth;
 
 	// Hit
 	if (!bBlocked)
@@ -605,19 +605,19 @@ void UOOSHitbox::SetTransformOnHit(bool bBlocked, int Damage, float OwnMult, flo
 		// Don't get transform energy from hitting if transformed.
 		if (!FPOwner->IsA<AOOSPawn_Transformed>())
 		{
-			FPOwner->Transform = FMath::Min(FPOwner->Transform + FMath::FloorToInt(Damage * 0.25f * OwnMult), MAX_TRANSFORM_POINTS);
+			FPOwner->Transform = FMath::Min(FPOwner->Transform + FMath::FloorToInt(InDamage * 0.25f * OwnMult), MAX_TRANSFORM_POINTS);
 		}
 
 		// Defender
 		if (FPOwner->Opponent->IsA<AOOSPawn_Transformed>())
 		{
 			// If transformed opponent, remove transform energy
-			FPOwner->Opponent->Transform = FMath::Max(FPOwner->Opponent->Transform - FMath::FloorToInt(Damage * 0.25f * OppMult), 0);
+			FPOwner->Opponent->Transform = FMath::Max(FPOwner->Opponent->Transform - FMath::FloorToInt(InDamage * 0.25f * OppMult), 0);
 		}
 		else
 		{
 			// * 0.6667f
-			FPOwner->Opponent->Transform = FMath::Min(FPOwner->Opponent->Transform + FMath::FloorToInt(Damage * 0.5f * OppMult), MAX_TRANSFORM_POINTS);
+			FPOwner->Opponent->Transform = FMath::Min(FPOwner->Opponent->Transform + FMath::FloorToInt(InDamage * 0.5f * OppMult), MAX_TRANSFORM_POINTS);
 		}
 	}
 	// Blocked
@@ -627,18 +627,18 @@ void UOOSHitbox::SetTransformOnHit(bool bBlocked, int Damage, float OwnMult, flo
 		// Don't get transform energy from hitting if transformed.
 		if (!FPOwner->IsA<AOOSPawn_Transformed>())
 		{
-			FPOwner->Transform = FMath::Min(FPOwner->Transform + FMath::FloorToInt(Damage * 0.125f * OwnMult), MAX_TRANSFORM_POINTS);
+			FPOwner->Transform = FMath::Min(FPOwner->Transform + FMath::FloorToInt(InDamage * 0.125f * OwnMult), MAX_TRANSFORM_POINTS);
 		}
 
 		// Defender
 		if (FPOwner->Opponent->IsA<AOOSPawn_Transformed>())
 		{
 			// If transformed opponent, remove transform energy
-			FPOwner->Opponent->Transform = FMath::Max(FPOwner->Opponent->Transform - FMath::FloorToInt(Damage * 0.16f * OppMult), 0);
+			FPOwner->Opponent->Transform = FMath::Max(FPOwner->Opponent->Transform - FMath::FloorToInt(InDamage * 0.16f * OppMult), 0);
 		}
 		else
 		{
-			FPOwner->Opponent->Transform = FMath::Min(FPOwner->Opponent->Transform + FMath::FloorToInt(Damage * 0.25f * OppMult), MAX_TRANSFORM_POINTS);
+			FPOwner->Opponent->Transform = FMath::Min(FPOwner->Opponent->Transform + FMath::FloorToInt(InDamage * 0.25f * OppMult), MAX_TRANSFORM_POINTS);
 		}
 	}
 }

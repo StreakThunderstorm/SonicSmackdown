@@ -8,6 +8,8 @@ public class OriginOfStormsMasterEditorTarget : TargetRules
 	public OriginOfStormsMasterEditorTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Editor;
+		DefaultBuildSettings = BuildSettingsVersion.V4;
+		IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
 
 		ExtraModuleNames.AddRange(new string[] { "OriginOfStormsMaster" } );
         ExtraModuleNames.AddRange(new string[] { "MoveNetworkEditor" });

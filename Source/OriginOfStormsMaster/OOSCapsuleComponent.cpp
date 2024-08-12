@@ -54,7 +54,7 @@ FPrimitiveSceneProxy* UOOSCapsuleComponent::CreateSceneProxy()
 			TArray<FDynamicMeshVertex> Vertices;
 			for (int i = 0; i < Component->Vertices.Num(); ++i)
 			{
-				FDynamicMeshVertex Vert = FDynamicMeshVertex(Component->Vertices[i]);
+				FDynamicMeshVertex Vert = FDynamicMeshVertex(FVector3f(Component->Vertices[i]));
 				Vert.TangentZ = Component->Normals[i];
 				Vertices.Add(Vert);
 
@@ -105,7 +105,8 @@ FPrimitiveSceneProxy* UOOSCapsuleComponent::CreateSceneProxy()
 				GetScene().GetPrimitiveUniformShaderParameters_RenderThread(GetPrimitiveSceneInfo(), bHasPrecomputedVolumetricLightmap_Mesh, PreviousLocalToWorld_Mesh, SingleCaptureIndex_Mesh, bOutputsVelocity_Mesh);
 
 				FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer_Mesh = Collector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
-				DynamicPrimitiveUniformBuffer_Mesh.Set(GetLocalToWorld(), PreviousLocalToWorld_Mesh, GetBounds(), GetLocalBounds(), true, bHasPrecomputedVolumetricLightmap_Mesh, DrawsVelocity(), bOutputsVelocity_Mesh);
+
+				DynamicPrimitiveUniformBuffer_Mesh.Set(GetLocalToWorld(), PreviousLocalToWorld_Mesh, GetBounds(), GetLocalBounds(), true, bHasPrecomputedVolumetricLightmap_Mesh, bOutputsVelocity_Mesh);
 				BatchElement.PrimitiveUniformBufferResource = &DynamicPrimitiveUniformBuffer_Mesh.UniformBuffer;
 
 				BatchElement.FirstIndex = 0;
@@ -150,7 +151,7 @@ FPrimitiveSceneProxy* UOOSCapsuleComponent::CreateSceneProxy()
 
 		// Draw a worldspace line that PROPERLY renders on top of any geo, since Epic haven't been able to do so for 4 years.
 		// Start and End in local space
-		void DrawLine(FVector Start, FVector End, FMeshElementCollector& Collector, int32 ViewIndex, FLinearColor Color, float Thickness)
+		void DrawLine(FVector Start, FVector End, FMeshElementCollector& Collector, int32 ViewIndex, FLinearColor InColor, float Thickness)
 		{
 			TArray<FDynamicMeshVertex> Vertices;
 			FStaticMeshVertexBuffers LineVB;

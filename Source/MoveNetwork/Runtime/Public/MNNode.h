@@ -1,8 +1,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "SubclassOf.h"
-#include "TextProperty.h"
+#include "Templates/SubclassOf.h"
+#include "UObject/TextProperty.h"
 #include "OOSMove.h"
 #include "MNNode.generated.h"
 

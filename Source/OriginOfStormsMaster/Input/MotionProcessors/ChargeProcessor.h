@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Input/MotionProcessors/MotionProcessor.h"
+#include "MotionProcessor.h"
 #include "ChargeProcessor.generated.h"
 
 /**

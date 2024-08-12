@@ -204,14 +204,14 @@ AOOSProjectile* AOOSProjectile::SpawnChild
 	int NumberOfHits, 
 	float HitTime, 
 	float Lifetime, 
-	FVector2D Speed, 
+	FVector2D InSpeed, 
 	FVector Offset, 
 	FRotator Rotation, 
 	bool bGrab, 
 	bool bForceGrab,
 	FName GrabSock,
 	UParticleSystem* HitParticle, 
-	USoundBase* HitSound, 
+	USoundBase* InHitSound, 
 	UParticleSystem* DeathParticle, 
 	USoundBase* DeathSound, 
 	int Damage, 
@@ -263,13 +263,13 @@ AOOSProjectile* AOOSProjectile::SpawnChild
 		NumberOfHits, 
 		HitTime, 
 		Lifetime, 
-		Speed, 
+		InSpeed, 
 		PawnOwner->GetActorForwardVector(), 
 		bGrab, 
 		bForceGrab,
 		GrabSock,
 		HitParticle, 
-		HitSound, 
+		InHitSound, 
 		DeathParticle, 
 		DeathSound, 
 		false,
@@ -571,12 +571,12 @@ void AOOSProjectile::ProjectileBeginOverlap(UPrimitiveComponent* ThisComp, AActo
 	}
 	else if (OtherComp->IsInA(UOOSHitbox::StaticClass()))
 	{
-		UOOSHitbox* Hitbox = Cast<UOOSHitbox>(OtherComp);
+		UOOSHitbox* InHitbox = Cast<UOOSHitbox>(OtherComp);
 
-		if (Hitbox->GetOwner() == FPOwner)
+		if (InHitbox->GetOwner() == FPOwner)
 			return;
 
-		if (Hitbox->bAntiProjectile)
+		if (InHitbox->bAntiProjectile)
 		{
 			if (RemainingHits == 1 && !bProtected)
 			{

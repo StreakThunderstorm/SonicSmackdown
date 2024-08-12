@@ -2,13 +2,13 @@
 
 
 #include "OOSBlueprintFunctionLibrary.h"
-#include "OOSPawn.h"
+#include "OriginOfStormsMaster/OOSPawn.h"
 
 bool UOOSBlueprintFunctionLibrary::PlayAnimAsMontage(USkeletalMeshComponent* ChildMesh, UAnimationAsset* AnimationAsset, bool bLoop, float DesiredDuration, float BlendInTime, float BlendOutTime)
 {
 	if (!ChildMesh || !AnimationAsset) return false;
 
-	if (AnimationAsset->IsA(UBlendSpaceBase::StaticClass()))
+	if (AnimationAsset->IsA(UBlendSpace::StaticClass()))
 	{
 		ChildMesh->PlayAnimation(AnimationAsset, bLoop);
 	}

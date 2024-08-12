@@ -5,6 +5,7 @@
 #include "OOSMovementComponent.h"
 #include "OOSCamera.h"
 #include "OOSAnimNotify_Movement.h"
+#include "Engine/World.h"
 #include "Runtime/Engine/Classes/Kismet/GameplayStatics.h"
 
 void AOOSPawn_Transformed::Tick(float DeltaTime)
@@ -66,10 +67,10 @@ void AOOSPawn_Transformed::FinishTransformation()
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	AOOSGameMode* GameMode = Cast<AOOSGameMode>(UGameplayStatics::GetGameMode(World));
+	AOOSGameMode* InGameMode = Cast<AOOSGameMode>(UGameplayStatics::GetGameMode(World));
 
 
-	if (!GetController() || !GameMode) return;
+	if (!GetController() || !InGameMode) return;
 
 	// @Jaime play transform FX here.
 
@@ -79,10 +80,10 @@ void AOOSPawn_Transformed::FinishTransformation()
 	UOOSFighterInputs* Inputs = GetFighterInputs();
 	EOOSInputDir DPad;
 	if (Inputs) DPad = Inputs->DPadState;
-	AController* Controller = GetController();
+	AController* InController = GetController();
 
-	Controller->UnPossess();
-	Controller->Possess(Normal);
+	InController->UnPossess();
+	InController->Possess(Normal);
 	Normal->SetActorLocation(ThisPos);
 
 	UOOSFighterInputs* NormalInputs = Normal->GetFighterInputs();
@@ -94,12 +95,12 @@ void AOOSPawn_Transformed::FinishTransformation()
 	{
 	case 0:
 		Camera->SetP1(Normal);
-		GameMode->Fighter1 = Normal;
+		InGameMode->Fighter1 = Normal;
 		break;
 
 	case 1:
 		Camera->SetP2(Normal);
-		GameMode->Fighter2 = Normal;
+		InGameMode->Fighter2 = Normal;
 		break;
 	}
 
@@ -133,9 +134,9 @@ void AOOSPawn_Transformed::QuickTransformation(bool bManual)
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	AOOSGameMode* GameMode = Cast<AOOSGameMode>(UGameplayStatics::GetGameMode(World));
+	AOOSGameMode* InGameMode = Cast<AOOSGameMode>(UGameplayStatics::GetGameMode(World));
 
-	if (!GetController() || !GameMode) return;
+	if (!GetController() || !InGameMode) return;
 
 	if (bManual)
 	{
@@ -154,9 +155,9 @@ void AOOSPawn_Transformed::QuickTransformation(bool bManual)
 	UOOSFighterInputs* Inputs = GetFighterInputs();
 	EOOSInputDir DPad;
 	if (Inputs) DPad = Inputs->DPadState;
-	AController* Controller = GetController();
-	Controller->UnPossess();
-	Controller->Possess(Normal);
+	AController* In = GetController();
+	In->UnPossess();
+	In->Possess(Normal);
 	UOOSFighterInputs* NormalInputs = Normal->GetFighterInputs();
 	if (NormalInputs) NormalInputs->DPadState = DPad;
 
@@ -169,12 +170,12 @@ void AOOSPawn_Transformed::QuickTransformation(bool bManual)
 	{
 	case 0:
 		Camera->SetP1(Normal);
-		GameMode->Fighter1 = Normal;
+		InGameMode->Fighter1 = Normal;
 		break;
 
 	case 1:
 		Camera->SetP2(Normal);
-		GameMode->Fighter2 = Normal;
+		InGameMode->Fighter2 = Normal;
 		break;
 	}
 

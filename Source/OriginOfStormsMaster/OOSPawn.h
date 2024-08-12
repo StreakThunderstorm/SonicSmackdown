@@ -251,7 +251,7 @@ private:
 public:
 	// Play animations directly from AnimSequence assets with looping and blend time options
 	UFUNCTION(BlueprintCallable, Category = "Animation")
-		bool PlayAnim(UAnimationAsset* AnimationAsset, bool bLoop = false, float DesiredDuration = -1.f, float BlendInTime = 0.f, float BlendOutTime = 0.f, bool bIgnoreMovNotifs = false, bool bDisableBlending = false);
+		bool PlayAnim(UAnimationAsset* AnimationAsset, bool bLoop = false, float DesiredDuration = -1.f, float BlendInTime = 0.1f, float BlendOutTime = 0.1f, bool bIgnoreMovNotifs = false, bool bDisableBlending = false);
 	bool PlayAnim_NoBlend(UAnimationAsset* AnimationAsset, bool bLoop = false, float DesiredDuration = -1.f, float BlendInTime = 0.f, float BlendOutTime = 0.f, bool bIgnoreMovNotifs = false);
 
 private:
@@ -361,7 +361,7 @@ public:
 			EOOSHitHeight HitHeight, 
 			EOOSInputAttack Attack, 
 			EOOSLaunchType Launch,
-			bool bForceComboExtension,
+			bool bInForceComboExtension,
 			bool bResetComboExtensions,
 			EOOSDirectionMode Direction, 
 			FVector2D LaunchSpd, 
@@ -404,7 +404,7 @@ public:
 			EOOSHitHeight HitHeight, 
 			EOOSInputAttack Attack, 
 			EOOSLaunchType Launch,
-			bool bForceComboExtension,
+			bool bInForceComboExtension,
 			bool bResetComboExtensions,
 			EOOSDirectionMode Direction, 
 			FVector2D LaunchSpd, 
@@ -535,7 +535,7 @@ public:
 
 public:
 	UFUNCTION(BlueprintCallable)
-	void Freeze(float Duration, bool bTwitch = true, bool bInvincible = false);
+	void Freeze(float Duration, bool bTwitch = true, bool bInInvincible = false);
 	UFUNCTION(BlueprintCallable)
 	void Unfreeze();
 	void SetHitStop(float Value);

@@ -2,8 +2,7 @@
 
 
 #include "OOSUnassignedPlayerController.h"
-#include "OOSGameMode.h"
-#include "OOSPlayerController.h"
+#include "OriginOfStormsMaster/OOSGameMode.h"
 #include "Runtime/Engine/Classes/Kismet/GameplayStatics.h"
 
 void AOOSUnassignedPlayerController::SetupInputComponent()

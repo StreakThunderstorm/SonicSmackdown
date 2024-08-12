@@ -103,15 +103,15 @@ void AOOSSonicRing::Tick( float DeltaTime )
 	}
 
 	// Despawn if too far from a fighter
-	AOOSPawn *Owner = Cast<AOOSPawn>(GetOwner());
-	if (IsTooFarFromPawn(Owner))
+	AOOSPawn *InOwner = Cast<AOOSPawn>(GetOwner());
+	if (IsTooFarFromPawn(InOwner))
 	{
 		Destroy();
 		return;
 	}
-	if (Owner)
+	if (InOwner)
 	{
-		if (IsTooFarFromPawn(Owner->Opponent))
+		if (IsTooFarFromPawn(InOwner->Opponent))
 		{
 			Destroy();
 			return;

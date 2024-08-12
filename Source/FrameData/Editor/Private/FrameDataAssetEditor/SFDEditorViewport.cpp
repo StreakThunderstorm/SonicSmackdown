@@ -5,7 +5,7 @@
 #include "FrameData.h"
 #include "Engine/TextureCube.h"
 #include "AnimPreviewInstance.h"
-#include "OOSPawn.h"
+#include "OriginOfStormsMaster/OOSPawn.h"
 #include "FDAnimInstance.h"
 #include "Editor/UnrealEd/Public/ComponentAssetBroker.h"
 
@@ -115,6 +115,11 @@ void SFDEditorViewport::AddReferencedObjects(FReferenceCollector& Collector)
 	Collector.AddReferencedObject(PostProcess);
 	Collector.AddReferencedObject(AnimInstance);
 	Collector.AddReferencedObject(PreviewPawn);
+}
+
+FString SFDEditorViewport::GetReferencerName() const
+{
+	return "FDEditorViewport";
 }
 
 void SFDEditorViewport::SetPreviewAnimation(UAnimationAsset* InAnimation)

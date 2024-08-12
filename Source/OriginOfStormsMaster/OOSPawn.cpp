@@ -1,31 +1,29 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "OOSPawn.h"
-#include "OOSHitbox.h"
-#include "OOSProjectile.h"
-#include "OOSAnimNotify_Hitbox.h"
-#include "OOSHurtbox.h"
-#include "OOSGameMode.h"
-#include "OOSGameInstance.h"
-#include "OOSCinematicScript.h"
-#include "OOSMovementComponent.h"
-#include "OOSCamera.h"
-#include "OOSAnimNotify_Movement.h"
-#include "Input/OOSPlayerController.h"
-#include "Input/OOSAIController.h"
-#include "Particles/ParticleSystemComponent.h"
+
+#include "AnimCustomInstanceHelper.h"
+#include "Engine.h"
 #include "NiagaraComponent.h"
+#include "OOSAnimNotify_Hitbox.h"
+#include "OOSAnimNotify_Movement.h"
+#include "OOSCamera.h"
+#include "OOSCinematicScript.h"
+#include "OOSGameInstance.h"
+#include "OOSGameMode.h"
+#include "OOSHitbox.h"
+#include "OOSHurtbox.h"
+#include "OOSMovementComponent.h"
+#include "OOSProjectile.h"
+#include "../Plugins/RMAMirrorAnimation/Source/RMAMirrorAnimation/Public/RMAMirrorAnimationMirrorTable.h"
+#include "Input/OOSAIController.h"
+#include "Input/OOSPlayerController.h"
+#include "Particles/ParticleSystemComponent.h"
 #include "Runtime/Engine/Classes/Animation/AnimInstance.h"
 #include "Runtime/Engine/Classes/Animation/AnimMontage.h"
 #include "Runtime/Engine/Classes/Animation/AnimSingleNodeInstance.h"
 #include "Runtime/Engine/Classes/Kismet/GameplayStatics.h"
-#include "Runtime/Engine/Classes/Animation/BlendSpaceBase.h"
-#include "SkeletalAnimation/OOSAnimSingleNodeInstance.h"
-#include "AnimGraphRuntime/Public/AnimCustomInstanceHelper.h"
 #include "SkeletalAnimation/OOSSkeletalMeshComponent.h"
-#include "../Plugins/RMAMirrorAnimation/Source/RMAMirrorAnimation/Public/RMAMirrorAnimationMirrorTable.h"
-
-#include "Engine.h"
 
 // Sets default values
 AOOSPawn::AOOSPawn()
@@ -356,7 +354,7 @@ void AOOSPawn::Tick(float DeltaTime)
 	if (SNI)
 	{
 		SmoothBlendSpaceInput = FMath::VInterpTo(SmoothBlendSpaceInput, BlendSpaceInput, DeltaTime, 20.f);
-		SNI->SetBlendSpaceInput(SmoothBlendSpaceInput);
+		SNI->SetBlendSpacePosition(SmoothBlendSpaceInput);
 	}
 
 	// Techs
@@ -779,7 +777,7 @@ bool AOOSPawn::PerformChildMove()
 }
 
 // Return value is playback successful or not.
-bool AOOSPawn::PlayAnim(UAnimationAsset* AnimationAsset, bool bLoop /*= false*/, float DesiredDuration /*= -1.f*/, float BlendInTime /*= 0.f*/, float BlendOutTime /*= 0.f*/, bool bIgnoreMovNotifs /*= false*/, bool bDisableBlending /*= false*/)
+bool AOOSPawn::PlayAnim(UAnimationAsset* AnimationAsset, bool bLoop /*= false*/, float DesiredDuration /*= -1.f*/, float BlendInTime /*= 0.1f*/, float BlendOutTime /*= 0.1f*/, bool bIgnoreMovNotifs /*= false*/, bool bDisableBlending /*= false*/)
 {
 	if (!AnimationAsset || !MovementComponent || !Opponent || !Opponent->MovementComponent || WasKilled()) return false;
 
@@ -801,7 +799,7 @@ bool AOOSPawn::PlayAnim(UAnimationAsset* AnimationAsset, bool bLoop /*= false*/,
 	//MovementComponent->bDoNotPush = false;
 	//Opponent->MovementComponent->bDoNotPush = false;
 
-	if (AnimationAsset->IsA(UBlendSpaceBase::StaticClass()))
+	if (AnimationAsset->IsA(UBlendSpace::StaticClass()))
 	{
 		bHasLandedAttack = false;
 		bHasMadeContact = false;
@@ -815,8 +813,8 @@ bool AOOSPawn::PlayAnim(UAnimationAsset* AnimationAsset, bool bLoop /*= false*/,
 		if (AnimationAsset->IsA(UAnimMontage::StaticClass()))
 		{
 			AnimMontage = Cast<UAnimMontage>(AnimationAsset);
-			AnimMontage->BlendIn = 0.f;
-			AnimMontage->BlendOut = 0.f;
+			AnimMontage->BlendIn = BlendInTime;
+			AnimMontage->BlendOut = BlendOutTime;
 		}
 		else
 		{
@@ -1446,7 +1444,7 @@ class UOOSHitbox* AOOSPawn::AddHitbox(
 	EOOSHitHeight HitHeight,
 	EOOSInputAttack Attack,
 	EOOSLaunchType Launch,
-	bool bForceComboExtension,
+	bool bInForceComboExtension,
 	bool bResetComboExtensions,
 	EOOSDirectionMode Direction,
 	FVector2D LaunchSpd,
@@ -1512,7 +1510,7 @@ class UOOSHitbox* AOOSPawn::AddHitbox(
 		HitHeight,
 		Attack,
 		Launch,
-		bForceComboExtension,
+		bInForceComboExtension,
 		bResetComboExtensions,
 		Direction,
 		LaunchSpd,
@@ -1566,7 +1564,7 @@ class AOOSProjectile* AOOSPawn::AddProjectile(
 	EOOSHitHeight HitHeight,
 	EOOSInputAttack Attack,
 	EOOSLaunchType Launch,
-	bool bForceComboExtension,
+	bool bInForceComboExtension,
 	bool bResetComboExtensions,
 	EOOSDirectionMode Direction,
 	FVector2D LaunchSpd,
@@ -1617,7 +1615,7 @@ class AOOSProjectile* AOOSPawn::AddProjectile(
 		HitHeight,
 		Attack,
 		Launch,
-		bForceComboExtension,
+		bInForceComboExtension,
 		bResetComboExtensions,
 		Direction,
 		LaunchSpd,
@@ -1651,9 +1649,9 @@ class AOOSProjectile* AOOSPawn::AddProjectile(
 
 void AOOSPawn::HitboxVisibility(bool Visible)
 {
-	TArray<USceneComponent*> Children = SkeletalMesh->GetAttachChildren();
+	TArray<USceneComponent*> InChildren = SkeletalMesh->GetAttachChildren();
 
-	for (USceneComponent* Component : Children)
+	for (USceneComponent* Component : InChildren)
 	{
 		UOOSHurtbox* HurtBox = Cast<UOOSHurtbox>(Component);
 		if (HurtBox)
@@ -2974,9 +2972,9 @@ bool AOOSPawn::IsFrozen() const
 
 bool AOOSPawn::IsAttackActive() const
 {
-	TArray<USceneComponent*> Children = SkeletalMesh->GetAttachChildren();
+	TArray<USceneComponent*> InChildren = SkeletalMesh->GetAttachChildren();
 
-	for (USceneComponent* Component : Children)
+	for (USceneComponent* Component : InChildren)
 	{
 		UOOSHitbox* HitBox = Cast<UOOSHitbox>(Component);
 		if (HitBox)
@@ -4119,7 +4117,7 @@ void AOOSPawn::SendToBackDepthLayer()
 	
 }
 
-void AOOSPawn::Freeze(float Duration, bool bTwitch, bool bInvincible)
+void AOOSPawn::Freeze(float Duration, bool bTwitch, bool bInInvincible)
 {
 	UWorld* World = GetWorld();
 	if (!World) return;
@@ -4137,7 +4135,7 @@ void AOOSPawn::Freeze(float Duration, bool bTwitch, bool bInvincible)
 	CustomTimeDilation = 0.00001f;
 	SkeletalMesh->SetComponentTickEnabled(false);
 
-	if (bInvincible)
+	if (bInInvincible)
 	{
 		bFreezeInvincible = true;
 	}
@@ -4520,9 +4518,9 @@ void AOOSPawn::SwapPawns()
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	AOOSGameMode* GameMode = Cast<AOOSGameMode>(UGameplayStatics::GetGameMode(World));
+	AOOSGameMode* InGameMode = Cast<AOOSGameMode>(UGameplayStatics::GetGameMode(World));
 
-	if (!GetController() || !MovementComponent || !GameMode) return;
+	if (!GetController() || !MovementComponent || !InGameMode) return;
 
 	FVector ThisPos = GetActorLocation();
 	FVector TransformPos = Transformed->GetActorLocation();
@@ -4530,9 +4528,9 @@ void AOOSPawn::SwapPawns()
 	EOOSInputDir DPad;
 	UOOSFighterInputs* Inputs = GetFighterInputs();
 	if (Inputs) DPad = Inputs->DPadState;
-	AController* Controller = GetController();
-	Controller->UnPossess();
-	Controller->Possess(Transformed);
+	AController* InController = GetController();
+	InController->UnPossess();
+	InController->Possess(Transformed);
 	UOOSFighterInputs* TransformedInputs = Transformed->GetFighterInputs();
 	if (TransformedInputs) TransformedInputs->DPadState = DPad;
 
@@ -4544,12 +4542,12 @@ void AOOSPawn::SwapPawns()
 	{
 	case 0:
 		Camera->SetP1(Transformed);
-		GameMode->Fighter1 = Transformed;
+		InGameMode->Fighter1 = Transformed;
 		break;
 
 	case 1:
 		Camera->SetP2(Transformed);
-		GameMode->Fighter2 = Transformed;
+		InGameMode->Fighter2 = Transformed;
 		break;
 	}
 

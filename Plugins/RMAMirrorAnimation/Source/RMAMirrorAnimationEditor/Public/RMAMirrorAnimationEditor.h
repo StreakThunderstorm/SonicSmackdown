@@ -1,7 +1,8 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2023 Rafael Marques Almeida. All Rights Reserved.
 #pragma once
 #include "CoreMinimal.h"
 #include "Styling/SlateStyle.h"
+#include "ContentBrowserDelegates.h"
 
 class URMAMirrorAnimationMirrorTable;
 
@@ -46,8 +47,8 @@ public:
 
 private:
 
-	//Copy Data
-	void CopyData(UObject* Source, UObject* Target);
+	//Copy Animation
+	void CopyAnimation(UAnimSequence* Source, UAnimSequence* Target);
 
 	//On Asset Renamed
 	void OnAssetRenamed(const FAssetData& AssetData, const FString& OldName);

@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2023 Rafael Marques Almeida. All Rights Reserved.
 #include "RMAMirrorAnimationAnimGraphNodeMirrorAnimation.h"
 #include "Kismet2/CompilerResultsLog.h"
 

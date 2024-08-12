@@ -6,13 +6,14 @@
 #include "MNEdGraph.h"
 #include "AssetToolsModule.h"
 #include "HAL/PlatformApplicationMisc.h"
-#include "GenericCommands.h"
+#include "Framework/Commands/GenericCommands.h"
 #include "GraphEditorActions.h"
 #include "IDetailsView.h"
 #include "PropertyEditorModule.h"
 #include "Editor/UnrealEd/Public/Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "EdGraphUtilities.h"
+#include "EditorStyleSet.h"
 #include "MNEdGraph.h"
 #include "MNNode_EdNode.h"
 #include "MNEdge_EdNode.h"
@@ -207,6 +208,11 @@ void FMNAssetEditor::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Collector.AddReferencedObject(EditingGraph);
 	Collector.AddReferencedObject(EditingGraph->EdGraph);
+}
+
+FString FMNAssetEditor::GetReferencerName() const
+{
+	return "MNAssetEditor";
 }
 
 UMNEditorSettings* FMNAssetEditor::GetSettings() const

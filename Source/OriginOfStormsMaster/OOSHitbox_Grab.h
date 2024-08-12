@@ -46,7 +46,7 @@ public:
 		enum EOOSLaunchType Launch,
 		bool bForceExtension,
 		bool bResetExtensions,
-		enum EOOSDirectionMode Direction,
+		enum EOOSDirectionMode InDirection,
 		FVector2D LaunchSpd,
 		bool bForceJmp
 	) override;

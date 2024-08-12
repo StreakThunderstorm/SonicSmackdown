@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2023 Rafael Marques Almeida. All Rights Reserved.
 #include "RMAMirrorAnimationAnimNodeMirrorAnimation.h"
 
 DEFINE_STAT(STAT_MirrorBones);
@@ -70,15 +70,15 @@ void FRMAMirrorAnimationAnimNodeMirrorAnimation::Evaluate_AnyThread(FPoseContext
 					const FTransform LBoneRefTransform = Output.Pose.GetRefPose(LBoneIndex);
 
 					//Mirror Rotation
-					Output.Pose[LBoneIndex].SetRotation(MirrorTable->MirrorRotation(LBoneTransform.GetRotation(), 
-						LBoneRefTransform.GetRotation(),MirrorTable->SingleBoneConfig[LIndex]));
+					Output.Pose[LBoneIndex].SetRotation(FQuat4d(MirrorTable->MirrorRotation(FQuat4f(LBoneTransform.GetRotation()),
+						FQuat4f(LBoneRefTransform.GetRotation()),MirrorTable->SingleBoneConfig[LIndex])));
 
 					if (MirrorTable->MirrorLocationData)
 					{
 
 						//Mirror Location
 						Output.Pose[LBoneIndex].SetLocation(MirrorTable->MirrorLocation(LBoneTransform.GetLocation(), LBoneRefTransform.GetLocation(), 
-							LBoneRefTransform.GetRotation(), MirrorTable->SingleBoneConfig[LIndex]));
+							FQuat4f(LBoneRefTransform.GetRotation()), MirrorTable->SingleBoneConfig[LIndex]));
 
 					}
 
@@ -117,20 +117,20 @@ void FRMAMirrorAnimationAnimNodeMirrorAnimation::Evaluate_AnyThread(FPoseContext
 					const FTransform LBoneBRefTransform = Output.Pose.GetRefPose(LBoneBIndex);
 
 					//Mirror Rotation (BoneA)
-					Output.Pose[LBoneAIndex].SetRotation(MirrorTable->MirrorRotationToOtherPose(LBoneBTransform.GetRotation(), LBoneBRefTransform.GetRotation(), 
-						LBoneARefTransform.GetRotation(), MirrorTable->DoubleBoneConfig[LIndex]));
+					Output.Pose[LBoneAIndex].SetRotation(FQuat4d(MirrorTable->MirrorRotationToOtherPose(FQuat4f(LBoneBTransform.GetRotation()), FQuat4f(LBoneBRefTransform.GetRotation()),
+						FQuat4f(LBoneARefTransform.GetRotation()), MirrorTable->DoubleBoneConfig[LIndex])));
 					
 					//Mirror Rotation (BoneB)
-					Output.Pose[LBoneBIndex].SetRotation(MirrorTable->MirrorRotationToOtherPose(LBoneATransform.GetRotation(), LBoneARefTransform.GetRotation(), 
-						LBoneBRefTransform.GetRotation(), MirrorTable->DoubleBoneConfig[LIndex]));
+					Output.Pose[LBoneBIndex].SetRotation(FQuat4d(MirrorTable->MirrorRotationToOtherPose(FQuat4f(LBoneATransform.GetRotation()), FQuat4f(LBoneARefTransform.GetRotation()),
+						FQuat4f(LBoneBRefTransform.GetRotation()), MirrorTable->DoubleBoneConfig[LIndex])));
 
 					//Mirror Location (BoneA)
 					Output.Pose[LBoneAIndex].SetLocation(MirrorTable->MirrorLocationToOtherPose(LBoneBTransform.GetLocation(), LBoneBRefTransform.GetLocation(), 
-						LBoneBRefTransform.GetRotation(), LBoneARefTransform.GetLocation(), LBoneARefTransform.GetRotation(), MirrorTable->DoubleBoneConfig[LIndex]));
+						FQuat4f(LBoneBRefTransform.GetRotation()), LBoneARefTransform.GetLocation(), FQuat4f(LBoneARefTransform.GetRotation()), MirrorTable->DoubleBoneConfig[LIndex]));
 
 					//Mirror Location (BoneB)
 					Output.Pose[LBoneBIndex].SetLocation(MirrorTable->MirrorLocationToOtherPose(LBoneATransform.GetLocation(), LBoneARefTransform.GetLocation(), 
-						LBoneARefTransform.GetRotation(), LBoneBRefTransform.GetLocation(), LBoneBRefTransform.GetRotation(), MirrorTable->DoubleBoneConfig[LIndex]));
+						FQuat4f(LBoneARefTransform.GetRotation()), LBoneBRefTransform.GetLocation(), FQuat4f(LBoneBRefTransform.GetRotation()), MirrorTable->DoubleBoneConfig[LIndex]));
 
 				}
 

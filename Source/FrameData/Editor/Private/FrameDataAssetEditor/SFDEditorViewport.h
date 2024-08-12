@@ -4,6 +4,7 @@
 #include "Editor/UnrealEd/Public/EditorModeManager.h"
 #include "UObject/GCObject.h"
 #include "FDPreviewScene.h"
+#include "Animation/AnimationAsset.h"
 
 class IFrameDataEditor;
 
@@ -26,6 +27,7 @@ public:
 
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override;
 	// End of FGCObject interface
 
 	/** The parent tab where this viewport resides */
@@ -45,11 +47,11 @@ private:
 	bool bIsPlaying = false;
 	bool bIsLooping = false;
 
-	class UDebugSkelMeshComponent* PreviewMesh;
-	class USkeletalMesh* PreviewMeshAsset;
-	class UPostProcessComponent* PostProcess;
-	class UFDAnimInstance* AnimInstance;
-	class AOOSPawn* PreviewPawn;
+	TObjectPtr<class UDebugSkelMeshComponent> PreviewMesh;
+	TObjectPtr<class USkeletalMesh> PreviewMeshAsset;
+	TObjectPtr<class UPostProcessComponent> PostProcess;
+	TObjectPtr<class UFDAnimInstance> AnimInstance;
+	TObjectPtr<class AOOSPawn> PreviewPawn;
 
 	uint32 CurrentFrame = 0;
 	float TimeElapsed = 0;
@@ -58,7 +60,7 @@ private:
 	TWeakPtr<IFrameDataEditor> FrameDataEditorPtr;
 
 	/** Frame Data asset */
-	UFrameData* FrameDataAsset;
+	TObjectPtr<UFrameData> FrameDataAsset;
 
 	/** Editor viewport client */
 	TSharedPtr<class FEditorViewportClient> EditorViewportClient;
