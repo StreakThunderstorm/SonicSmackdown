@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2023 Rafael Marques Almeida. All Rights Reserved.
 #include "RMAMirrorAnimationEditor.h"
 #include "RMAMirrorAnimation.h"
 #include "RMAMirrorAnimationMirrorTableEditorInterface.h"
@@ -8,7 +8,7 @@
 #include "RMAMirrorAnimationAnimSequenceDetails.h"
 #include "RMAMirrorAnimationAnimSequenceCustomData.h"
 #include "AssetToolsModule.h"
-#include "AssetRegistryModule.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "PropertyEditorModule.h"
 #include "Components/NativeWidgetHost.h"
@@ -16,6 +16,7 @@
 #include "Blueprint/WidgetTree.h"
 #include "Serialization/ObjectWriter.h"
 #include "Serialization/ObjectReader.h"
+#include "ObjectTools.h"
 
 void FRMAMirrorAnimationEditor::StartupModule()
 {
@@ -28,7 +29,7 @@ void FRMAMirrorAnimationEditor::StartupModule()
 	UThumbnailManager::Get().RegisterCustomRenderer(URMAMirrorAnimationMirrorTable::StaticClass(), URMAMirrorAnimationMirrorTableThumbnailRenderer::StaticClass());
 
 	//Icons
-	FStringAssetReference LPluginIconPath("/RMAMirrorAnimation/Icons/T_Plugin_02.T_Plugin_02");
+	FSoftObjectPath LPluginIconPath("/RMAMirrorAnimation/Icons/T_Plugin_02.T_Plugin_02");
 	UTexture* LPluginIcon = Cast<UTexture>(LPluginIconPath.TryLoad());
 
 	if (LPluginIcon)
@@ -84,6 +85,13 @@ void FRMAMirrorAnimationEditor::ShutdownModule()
 {
 
 
+
+}
+
+URMAMirrorAnimationAnimSequenceProxy* CreateProxy()
+{
+
+	return NewObject<URMAMirrorAnimationAnimSequenceProxy>();
 
 }
 
@@ -145,38 +153,34 @@ void FRMAMirrorAnimationEditor::MirrorAnimations(const TArray<UAnimSequence*>& A
 			if (LSource)
 			{
 
-				URMAMirrorAnimationAnimSequenceProxy* LProxy = NewObject<URMAMirrorAnimationAnimSequenceProxy>();
-
-				if (LProxy)
+				if (!InPlace)
 				{
 
-					CopyData(LSource, LProxy);
+					FString LOutPath, LOutName;
+					FAssetToolsModule& LAssetModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+
+					LAssetModule.Get().CreateUniqueAssetName(LSource->GetOutermost()->GetPathName(), "_MR", LOutPath, LOutName);
+					LSource = Cast<UAnimSequence>(LAssetModule.Get().DuplicateAsset(LOutName, FPaths::GetPath(LOutPath), LSource));
+
+				}
+
+				if (LSource)
+				{
+
+					auto LProxy = CreateProxy();
+					CopyAnimation(LSource, LProxy);
 
 					if (LProxy->MirrorAnimation(MirrorTable))
 					{
 
-						UAnimSequence* LOutAnimation = LSource;
+						CopyAnimation(LProxy, LSource);
 
-						if (!InPlace)
-						{
+					}
 
-							FString LOutPath;
-							FString LOutName;
-							FAssetToolsModule& LAssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+					else if(LSource != Animations[LIndex])
+					{
 
-							LAssetToolsModule.Get().CreateUniqueAssetName(LSource->GetOutermost()->GetPathName(), "_MR", LOutPath, LOutName);
-							LOutAnimation = Cast<UAnimSequence>(LAssetToolsModule.Get().DuplicateAsset(LOutName, FPaths::GetPath(LOutPath), LSource));
-
-						}
-
-						if (LOutAnimation)
-						{
-
-							LOutAnimation->CreateAnimation(LProxy);
-							LOutAnimation->AddAssetUserData(LProxy->GetAssetUserDataOfClass(URMAMirrorAnimationAnimSequenceCustomData::StaticClass()));
-							LOutAnimation->MarkPackageDirty();
-
-						}
+						ObjectTools::ForceDeleteObjects({ LSource }, false);
 
 					}
 
@@ -196,32 +200,36 @@ void FRMAMirrorAnimationEditor::ResetAnimation(UAnimSequence* Animation)
 	if (Animation)
 	{
 
-		URMAMirrorAnimationAnimSequenceProxy* LProxy = NewObject<URMAMirrorAnimationAnimSequenceProxy>();
-
-		if (LProxy)
-		{
-
-			CopyData(Animation, LProxy);
-			LProxy->ResetAnimation();
-			Animation->CreateAnimation(LProxy);
-			Animation->MarkPackageDirty();
-
-		}
+		auto LProxy = CreateProxy();
+		CopyAnimation(Animation, LProxy);
+		LProxy->ResetAnimation();
+		CopyAnimation(LProxy, Animation);
 
 	}
 
 }
 
-void FRMAMirrorAnimationEditor::CopyData(UObject* Source, UObject* Target)
+void CopyData(UObject* Source, UObject* Target)
 {
 
 	if (Source && Target)
 	{
 
 		TArray<uint8> LData;
-		FObjectWriter LWriter = FObjectWriter(LData);
-		Source->Serialize(LWriter);
+		FObjectWriter LWriter = FObjectWriter(Source, LData);
 		FObjectReader(Target, LData);
+
+	}
+
+}
+
+void FRMAMirrorAnimationEditor::CopyAnimation(UAnimSequence* Source, UAnimSequence* Target)
+{
+
+	if (Source && Target)
+	{
+
+		CopyData(Source, Target);
 
 	}
 
@@ -290,8 +298,8 @@ void FRMAMirrorAnimationEditor::OnAssetsPreDelete(const TArray<UObject*>& Assets
 
 					//Dependencies
 					TArray<FName> LDependencies;
-					LAssetRegistryModule.Get().GetDependencies(LMirrorTable->GetOutermost()->FileName, LDependencies);
-
+					LAssetRegistryModule.Get().GetDependencies(LMirrorTable->GetOutermost()->GetLoadedPath().GetPackageFName(), LDependencies);
+					
 					for (int LAssetIndex = 0; LAssetIndex < Assets.Num(); LAssetIndex++)
 					{
 
@@ -373,13 +381,12 @@ TSharedRef<class SDockTab> FRMAMirrorAnimationEditor::BuildMirrorTableEditor(con
 			LAssetPickerConfig.bAllowDragging = false;
 			LAssetPickerConfig.bCanShowClasses = false;
 			LAssetPickerConfig.bCanShowDevelopersFolder = false;
-			LAssetPickerConfig.bPreloadAssetsForContextMenu = false;
 
 			LAssetPickerConfig.OnShouldFilterAsset = FOnShouldFilterAsset::CreateLambda(
 				[](const FAssetData& AssetData)
 				{
 
-					if (AssetData.GetClass()->IsChildOf(UAnimSequence::StaticClass()))
+					if (AssetData.GetClass() && AssetData.GetClass()->IsChildOf(UAnimSequence::StaticClass()))
 					{
 
 						TArray<FAssetData> LSelection;

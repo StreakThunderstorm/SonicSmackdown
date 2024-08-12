@@ -1,9 +1,9 @@
 #include "FDAssetEditor.h"
-#include "SDockTab.h"
+#include "Widgets/Docking/SDockTab.h"
 #include "../FrameDataEditorPCH.h"
 #include "AssetToolsModule.h"
 #include "HAL/PlatformApplicationMisc.h"
-#include "GenericCommands.h"
+#include "Framework/Commands/GenericCommands.h"
 #include "FDEditorCommands.h"
 #include "GraphEditorActions.h"
 #include "IDetailsView.h"
@@ -97,12 +97,12 @@ void FFDAssetEditor::InitFrameDataAssetEditor(const EToolkitMode::Type Mode, con
 	FFDEditorCommands::Register();
 
 	// Bind keyboard commands.
-	TSharedPtr<FUICommandList> ToolkitCommands = GetToolkitCommands();
-	ToolkitCommands->MapAction(FFDEditorCommands::Get().TogglePlay,
+	TSharedPtr<FUICommandList> InToolkitCommands = GetToolkitCommands();
+	InToolkitCommands->MapAction(FFDEditorCommands::Get().TogglePlay,
 		FExecuteAction::CreateSP(this, &FFDAssetEditor::TogglePlay_KeyboardCommand));
-	ToolkitCommands->MapAction(FFDEditorCommands::Get().StepForward,
+	InToolkitCommands->MapAction(FFDEditorCommands::Get().StepForward,
 		FExecuteAction::CreateSP(this, &FFDAssetEditor::StepForward_KeyboardCommand), EUIActionRepeatMode::RepeatEnabled);
-	ToolkitCommands->MapAction(FFDEditorCommands::Get().StepBack,
+	InToolkitCommands->MapAction(FFDEditorCommands::Get().StepBack,
 		FExecuteAction::CreateSP(this, &FFDAssetEditor::StepBack_KeyboardCommand), EUIActionRepeatMode::RepeatEnabled);
 
 	TSharedPtr<FExtender> ToolbarExtender = MakeShareable(new FExtender);
@@ -231,7 +231,7 @@ TSharedRef<SDockTab> FFDAssetEditor::SpawnTab_Properties(const FSpawnTabArgs& Ar
 	check(Args.GetTabId() == FFDAssetEditorTabs::FrameDataPropertyID);
 
 	return SNew(SDockTab)
-		.Icon(FEditorStyle::GetBrush("FrameDataEditor.Tabs.Properties"))
+		//.Icon(FEditorStyle::GetBrush("FrameDataEditor.Tabs.Properties"))
 		.Label(LOCTEXT("FrameDataProperties_TabTitle", "Details"))
 		[
 			DetailsView.ToSharedRef()
@@ -379,6 +379,11 @@ void FFDAssetEditor::RefreshAnimAsset(UAnimationAsset* InAnimation)
 void FFDAssetEditor::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Collector.AddReferencedObject(PreviewAnimationAsset);
+}
+
+FString FFDAssetEditor::GetReferencerName() const
+{
+	return "FDAssetEditor";
 }
 
 

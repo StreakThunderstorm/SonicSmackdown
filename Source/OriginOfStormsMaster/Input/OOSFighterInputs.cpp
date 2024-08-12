@@ -3,12 +3,12 @@
 
 #include "OOSFighterInputs.h"
 #include "OOSPlayerController.h"
-#include "Input/MotionProcessors/QuarterCircleProcessor.h"
-#include "Input/MotionProcessors/DragonPunchProcessor.h"
-#include "Input/MotionProcessors/HalfCircleProcessor.h"
-#include "Input/MotionProcessors/FullCircleProcessor.h"
-#include "Input/MotionProcessors/ChargeProcessor.h"
-#include "Input/MotionProcessors/RagingDemonProcessor.h"
+#include "OriginOfStormsMaster/Input/MotionProcessors/QuarterCircleProcessor.h"
+#include "OriginOfStormsMaster/Input/MotionProcessors/DragonPunchProcessor.h"
+#include "OriginOfStormsMaster/Input/MotionProcessors/HalfCircleProcessor.h"
+#include "OriginOfStormsMaster/Input/MotionProcessors/FullCircleProcessor.h"
+#include "OriginOfStormsMaster/Input/MotionProcessors/ChargeProcessor.h"
+#include "OriginOfStormsMaster/Input/MotionProcessors/RagingDemonProcessor.h"
 
 UOOSFighterInputs::UOOSFighterInputs()
 {

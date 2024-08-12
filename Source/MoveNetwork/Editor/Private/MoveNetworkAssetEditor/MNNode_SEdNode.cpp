@@ -1,13 +1,17 @@
 #include "MNNode_SEdNode.h"
+
+#include "EditorStyleSet.h"
 #include "../MoveNetworkEditorPCH.h"
 #include "MNColors.h"
 #include "SLevelOfDetailBranchNode.h"
-#include "SInlineEditableTextBlock.h"
 #include "SCommentBubble.h"
 #include "SlateOptMacros.h"
 #include "SGraphPin.h"
 #include "GraphEditorSettings.h"
 #include "MNNode_EdNode.h"
+#include "Components/VerticalBox.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Text/SInlineEditableTextBlock.h"
 
 #define LOCTEXT_NAMESPACE "EdNode_MoveNetwork"
 

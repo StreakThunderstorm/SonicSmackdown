@@ -11,8 +11,8 @@ ANewAnimTestPawn::ANewAnimTestPawn()
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
-	USkeletalMeshComponent* Mesh = GetMesh();
-	if(Mesh) Mesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+	USkeletalMeshComponent* InMesh = GetMesh();
+	if(InMesh) InMesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 
 }
 
@@ -39,10 +39,10 @@ void ANewAnimTestPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 void ANewAnimTestPawn::PlayAnimation(UAnimationAsset* Anim, bool bLoop)
 {
-	USkeletalMeshComponent* Mesh = GetMesh();
-	if (!Mesh) return;
+	USkeletalMeshComponent* InMesh = GetMesh();
+	if (!InMesh) return;
 
-	UAnimSingleNodeInstance* SNI = Mesh->GetSingleNodeInstance();
+	UAnimSingleNodeInstance* SNI = InMesh->GetSingleNodeInstance();
 	if (!SNI) return;
 
 	SNI->SetAnimationAsset(Anim, bLoop);

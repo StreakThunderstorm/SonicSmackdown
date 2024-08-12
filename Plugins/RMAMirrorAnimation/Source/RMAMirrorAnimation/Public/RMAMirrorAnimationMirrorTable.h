@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2023 Rafael Marques Almeida. All Rights Reserved.
 #pragma once
 #include "Animation/Skeleton.h"
 #include "RMAMirrorAnimationUtility.h"
@@ -17,7 +17,7 @@ public:
 
 #if WITH_EDITOR
 	virtual void PostLoad() override;
-	virtual void PreSave(const class ITargetPlatform* TargetPlatform) override;
+	virtual void PreSave(FObjectPreSaveContext SaveContext) override;
 #endif
 
 	//Skeleton That Will Be Used To Generate Bone Config
@@ -89,18 +89,18 @@ public:
 
 	//Mirror Location (i.e Head, Pelvis, Spine)
 	UFUNCTION()
-		FVector MirrorLocation(const FVector& Location, const FVector& RefLocation, const  FQuat& RefRotation, const FRMAMirrorAnimationSingleBoneConfig& BoneConfig);
+		FVector MirrorLocation(const FVector& Location, const FVector& RefLocation, const  FQuat4f& RefRotation, const FRMAMirrorAnimationSingleBoneConfig& BoneConfig);
 
 	//Mirror Rotation (i.e Head, Pelvis, Spine)
 	UFUNCTION()
-		FQuat MirrorRotation(const FQuat& Rotation, const FQuat& RefRotation, const FRMAMirrorAnimationSingleBoneConfig& BoneConfig);
+		FQuat4f MirrorRotation(const FQuat4f& Rotation, const FQuat4f& RefRotation, const FRMAMirrorAnimationSingleBoneConfig& BoneConfig);
 
 	//Mirror Location To Other Pose (i.e Foot, Hand, Eye)
 	UFUNCTION()
-		FVector MirrorLocationToOtherPose(const FVector& SourceLocation, const FVector& SourceRefLocation, const FQuat& SourceRefRotation, const FVector& TargetRefLocation, const FQuat& TargetRefRotation, const FRMAMirrorAnimationDoubleBoneConfig& BoneConfig);
+		FVector MirrorLocationToOtherPose(const FVector& SourceLocation, const FVector& SourceRefLocation, const FQuat4f& SourceRefRotation, const FVector& TargetRefLocation, const FQuat4f& TargetRefRotation, const FRMAMirrorAnimationDoubleBoneConfig& BoneConfig);
 
 	//Mirror Rotation To Other Pose (i.e Foot, Hand, Eye)
 	UFUNCTION()
-		FQuat MirrorRotationToOtherPose(const FQuat& SourceRotation, const FQuat& SourceRefRotation, const FQuat& TargetRefRotation, const FRMAMirrorAnimationDoubleBoneConfig& BoneConfig);
+		FQuat4f MirrorRotationToOtherPose(const FQuat4f& SourceRotation, const FQuat4f& SourceRefRotation, const FQuat4f& TargetRefRotation, const FRMAMirrorAnimationDoubleBoneConfig& BoneConfig);
 
 };

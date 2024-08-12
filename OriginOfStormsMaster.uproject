@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "4.27",
+	"EngineAssociation": "5.4",
 	"Category": "",
 	"Description": "",
 	"Modules": [
@@ -265,10 +265,6 @@
 			"Enabled": false
 		},
 		{
-			"Name": "NiagaraExtras",
-			"Enabled": true
-		},
-		{
 			"Name": "GeometryCache",
 			"Enabled": false
 		},
@@ -298,22 +294,17 @@
 		},
 		{
 			"Name": "PrExtendedShadingPro",
-			"Enabled": true,
+			"Enabled": false,
 			"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/content/951add01b5ad41e89f89066a10d0242a"
 		},
 		{
 			"Name": "GPULightmass",
-			"Enabled": true
+			"Enabled": false
 		},
 		{
 			"Name": "CompilerBooster",
 			"Enabled": false,
 			"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/content/15afae52463a44cb85a3176c003c8fb1"
-		},
-		{
-			"Name": "CleanProject",
-			"Enabled": true,
-			"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/content/13d45e838b954d67b9d5d01fa82635d9"
 		}
 	]
 }

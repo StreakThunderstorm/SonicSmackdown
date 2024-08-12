@@ -1,14 +1,12 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2023 Rafael Marques Almeida. All Rights Reserved.
 #include "RMAMirrorAnimationUtility.h"
 #include "Interfaces/IPluginManager.h"
-
 #if WITH_EDITOR
 #include "FileHelpers.h"
-#include "AssetRegistryModule.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "EditorAssetLibrary.h"
 #endif
-
-#include "AssetData.h"
+#include "AssetRegistry/AssetData.h"
 
 FRMAMirrorAnimationBoneKeyword::FRMAMirrorAnimationBoneKeyword(FString PKeywordA /* = "None" */, FString PKeywordB /* = "None" */)
 {
@@ -147,7 +145,7 @@ TArray<UObject*> URMAMirrorAnimationFunctionLibrary::GetAssetsByClass(TSubclassO
 		FAssetRegistryModule& LAssetRegistryModule = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 
 		//Find Assets
-		LAssetRegistryModule.Get().GetAssetsByClass(Class->GetFName(), LAssetsData);
+		LAssetRegistryModule.Get().GetAssetsByClass(FTopLevelAssetPath(Class), LAssetsData);
 
 		//Cast AssetData To Object
 		for (int LIndex = 0; LIndex < LAssetsData.Num(); LIndex++)

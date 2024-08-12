@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "2.2.0",
+	"VersionName": "3.4.0",
 	"FriendlyName": "RMAMirrorAnimation",
 	"Description": "RMAMirrorAnimation offers an easy way to mirror animations.",
 	"Category": "Animation",
@@ -10,7 +10,7 @@
 	"DocsURL": "https://drive.google.com/file/d/0B6vxLBj3jyhwaDF2OXZLOHl2V0U/view",
 	"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/content/3078940d2e5a4fabb31375f909609b90",
 	"SupportURL": "",
-	"EngineVersion": "4.27.0",
+	"EngineVersion": "5.4.0",
 	"CanContainContent": true,
 	"Installed": true,
 	"Modules": [
@@ -18,18 +18,16 @@
 			"Name": "RMAMirrorAnimation",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
-			"WhitelistPlatforms": [
-				"Win64",
-				"Win32"
+			"PlatformAllowList": [
+				"Win64"
 			]
 		},
 		{
 			"Name": "RMAMirrorAnimationEditor",
 			"Type": "UncookedOnly",
 			"LoadingPhase": "Default",
-			"WhitelistPlatforms": [
-				"Win64",
-				"Win32"
+			"PlatformAllowList": [
+				"Win64"
 			]
 		}
 	],

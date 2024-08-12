@@ -1,10 +1,12 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2023 Rafael Marques Almeida. All Rights Reserved.
 #pragma once
 #include "RMAMirrorAnimationMirrorTable.h"
 #include "RMAMirrorAnimationAnimSequenceCustomData.h"
 #include "Animation/AnimSequence.h"
-#include "Blutility/Classes/EditorUtilityWidget.h"
+#include "EditorUtilityWidget.h"
 #include "RMAMirrorAnimationAnimSequenceDetailsInterface.generated.h"
+
+class UPropertyViewBase;
 
 //AnimSequence Details Interface
 UCLASS()
@@ -38,6 +40,10 @@ public:
 	//Reset Animation
 	UFUNCTION(BlueprintCallable, Category = "")
 		void ResetAnimation();
+
+	//Setter View Object
+	UFUNCTION(BlueprintCallable, Category = "")
+		void SetViewObject(UPropertyViewBase* ViewBase, UObject* Object);
 
 protected:
 

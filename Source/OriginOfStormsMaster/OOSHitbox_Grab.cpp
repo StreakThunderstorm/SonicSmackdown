@@ -44,7 +44,7 @@ void UOOSHitbox_Grab::Initialize
 	enum EOOSLaunchType Launch,
 	bool bForceExtension,
 	bool bResetExtensions,
-	enum EOOSDirectionMode Direction,
+	enum EOOSDirectionMode InDirection,
 	FVector2D LaunchSpd,
 	bool bForceJmp
 )
@@ -80,7 +80,7 @@ void UOOSHitbox_Grab::Initialize
 		Launch,
 		bForceExtension,
 		bResetExtensions,
-		Direction,
+		InDirection,
 		LaunchSpd,
 		bForceJmp
 	);
@@ -195,9 +195,7 @@ void UOOSHitbox_Grab::MainLoop(float DeltaTime)
 
 			if (FinalLaunchType != EOOSLaunchType::OOSLT_None)
 			{
-				TBaseDelegate<void, bool, FVector> ThrowCollisionDelegate;
-				ThrowCollisionDelegate.BindUFunction(this, "OnOpponentThrowCollided");
-				FPOwner->Opponent->OnThrowCollision.Add(ThrowCollisionDelegate);
+				FPOwner->Opponent->OnThrowCollision.AddUObject(this, &UOOSHitbox_Grab::OnOpponentThrowCollided);
 			}
 		}
 		else if (FPOwner->Opponent->DefensiveTransform)

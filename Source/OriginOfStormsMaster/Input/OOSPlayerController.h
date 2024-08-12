@@ -2,9 +2,10 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "OOSMove.h"
-#include "Input/OOSFighterInputs.h"
+#include "OriginOfStormsMaster/Input/OOSFighterInputs.h"
 #include "OOSPlayerController.generated.h"
 
 // Time the move is kept in the buffer after completion
@@ -31,21 +32,21 @@ public:
 
 	TOOSCircularBuffer(Type InitValue, uint8 Capacity)
 	{
-		Init(InitValue, Capacity);
+		TArray<Type>::Init(InitValue, Capacity);
 		Size = Capacity;
 	}
 
 	// Adds a new entry to the buffer. Pushes the oldest out of the buffer.
 	void Push(Type Value)
 	{
-		Add(Value);
-		RemoveAt(0);
+		TArray<Type>::Add(Value);
+		TArray<Type>::RemoveAt(0);
 	}
 
 	// Get newest entry.
 	Type& Peek()
 	{
-		return operator[](Size - 1);
+		return TArray<Type>::operator[](Size - 1);
 	}
 	
 };
@@ -139,7 +140,7 @@ public:
 	class AOOSPawn* PosessedPawn;
 
 	// Buffers
-	TOOSCircularBuffer<FOOSInput> InputBuffer = TOOSCircularBuffer<FOOSInput>(FOOSInput(), 32);
+	TOOSCircularBuffer<FOOSInput> InputBuffer = TOOSCircularBuffer(FOOSInput(), 32);
 
 	UPROPERTY(Category = InputBufferDir, VisibleAnywhere, BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
 		UOOSFighterInputs* Inputs;

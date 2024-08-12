@@ -5,6 +5,7 @@
 #include "IFrameDataEditor.h"
 #include "Editor/EditorWidgets/Public/ITransportControl.h"
 #include "Editor/UnrealEd/Public/Toolkits/AssetEditorToolkit.h"
+#include "Misc/NotifyHook.h"
 
 class FGGAssetEditorToolbar;
 
@@ -34,6 +35,7 @@ public:
 
 	//~ Begin FGCObject Interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override;
 	//~ End FGCObject Interface
 
 
@@ -41,7 +43,7 @@ private:
 	void RefreshAnimAsset(UAnimationAsset* InAnimation);
 
 	UFrameData* EditingFrameData;
-	UAnimationAsset* PreviewAnimationAsset;
+	TObjectPtr<UAnimationAsset> PreviewAnimationAsset;
 
 	void OnFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent);
 

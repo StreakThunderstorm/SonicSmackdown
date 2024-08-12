@@ -1,7 +1,10 @@
 #include "MNAssetEditorToolbar.h"
+
+#include "EditorStyleSet.h"
 #include "MNAssetEditor.h"
 #include "MNEditorCommands.h"
 #include "MNEditorStyle.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 
 #define LOCTEXT_NAMESPACE "AssetEditorToolbar_MoveNetwork"
 

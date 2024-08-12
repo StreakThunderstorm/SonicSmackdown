@@ -2,14 +2,14 @@
 
 
 #include "OOSAIController.h"
-#include "OOSGameInstance.h"
-#include "OOSGameMode.h"
-#include "OOSMovementComponent.h"
-#include "OOSPawn_Transformed.h"
+#include "OriginOfStormsMaster/OOSGameInstance.h"
+#include "OriginOfStormsMaster/OOSGameMode.h"
+#include "OriginOfStormsMaster/OOSMovementComponent.h"
+#include "OriginOfStormsMaster/OOSPawn_Transformed.h"
 #include "OOSPlayerController.h"
 #include "MNComboSet.h"
 #include "Engine.h"
-#include "OriginOfStormsMaster.h"
+#include "OriginOfStormsMaster/OriginOfStormsMaster.h"
 
 AOOSAIController::AOOSAIController() 
 {
@@ -52,10 +52,10 @@ void AOOSAIController::Tick(float DeltaTime)
 				PlayerController->PosessedPawn = nullptr;
 			}
 
-			const UWorld* World = GetWorld();
-			if (!World) return;
+			const UWorld* InWorld = GetWorld();
+			if (!InWorld) return;
 
-			AOOSGameMode* GameMode = Cast<AOOSGameMode>(UGameplayStatics::GetGameMode(World));
+			AOOSGameMode* GameMode = Cast<AOOSGameMode>(UGameplayStatics::GetGameMode(InWorld));
 			if (!GameMode) return;
 
 			// Remove player controller, set an unassigned controller to the game mode
@@ -435,8 +435,8 @@ void AOOSAIController::TickAI(float DeltaTime)
 		//float SuperOdds = MeterOdds * 0.3f + BurstOdds * 0.4f + LifeOdds * 0.3f;
 
 		// Do supers at a much lower rate during training
-		UWorld* World = GetWorld();
-		UOOSGameInstance* GameInstance = Cast<UOOSGameInstance>(UGameplayStatics::GetGameInstance(World));
+		UWorld* InWorld = GetWorld();
+		UOOSGameInstance* GameInstance = Cast<UOOSGameInstance>(UGameplayStatics::GetGameInstance(InWorld));
 		//@TODO: allow supers at the normal rate during training if super meter isn't infinite?
 		if (GameInstance->bTrainingMode && !false)
 		{
@@ -539,7 +539,7 @@ void AOOSAIController::TickAI(float DeltaTime)
 			if (RollJabRange(0.1f))
 			{
 				int StrengthIndex = RollWeightedIndex(3, 2.f); // Prefer lower strengths
-				int Strength = (int)FMath::Pow(2, StrengthIndex); //@TODO: use noise instead of rng
+				int Strength = (int)FMath::Pow(2.f, StrengthIndex); //@TODO: use noise instead of rng
 
 				//@TODO: This line isn't enough to press buttons just yet
 				InputBuffer.AddAttackFlags((EOOSInputAttack)Strength);
@@ -650,7 +650,7 @@ void AOOSAIController::TickAI(float DeltaTime)
 			if (ControlledPawn->IsTransformReady())
 			{
 				// Don't burst during training
-				UWorld* World = GetWorld();
+				UWorld* InWorld = GetWorld();
 				UOOSGameInstance* GameInstance = Cast<UOOSGameInstance>(UGameplayStatics::GetGameInstance(World));
 				//@TODO: allow bursting during training if burst gauge isn't infinite?
 				if (!GameInstance->bTrainingMode || false)
@@ -904,7 +904,7 @@ void AOOSAIController::TickAI(float DeltaTime)
 								StrengthIndex = 3;
 							else
 								StrengthIndex = RollWeightedIndex(3, 2.f); // Prefer lower strengths
-							int Strength = (int)FMath::Pow(2, StrengthIndex); //@TODO: use noise instead of rng
+							int Strength = (int)FMath::Pow(2.f, StrengthIndex); //@TODO: use noise instead of rng
 
 							//@TODO: This line isn't enough to press buttons just yet
 							InputBuffer.AddAttackFlags((EOOSInputAttack)Strength);

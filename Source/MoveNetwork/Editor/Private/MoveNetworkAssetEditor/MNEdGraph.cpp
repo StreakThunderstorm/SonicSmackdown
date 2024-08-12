@@ -3,6 +3,7 @@
 #include "MoveNetwork.h"
 #include "MNNode_EdNode.h"
 #include "MNEdge_EdNode.h"
+#include "EdGraph/EdGraphPin.h"
 
 UMNEdGraph::UMNEdGraph()
 {
@@ -51,7 +52,7 @@ void UMNEdGraph::RebuildMoveNetwork()
 					}
 					else if (UMNEdge_EdNode* EdNode_Edge = Cast<UMNEdge_EdNode>(Pin->LinkedTo[LinkToIdx]->GetOwningNode()))
 					{
-						UMNNode_EdNode* EdNode_Child = EdNode_Edge->GetEndNode();;
+						EdNode_Child = EdNode_Edge->GetEndNode();;
 						if (EdNode_Child != nullptr)
 						{
 							ChildNode = EdNode_Child->MoveNetworkNode;

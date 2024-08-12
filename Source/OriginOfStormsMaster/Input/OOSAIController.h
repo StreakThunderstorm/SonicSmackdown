@@ -4,8 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "AIController.h"
-#include "OOSAnimNotify_Hitbox.h"
-#include "Input/OOSPlayerController.h"
+#include "OriginOfStormsMaster/OOSAnimNotify_Hitbox.h"
+#include "OriginOfStormsMaster/Input/OOSPlayerController.h"
 #include "Runtime/Engine/Classes/Engine/LocalPlayer.h"
 #include "OOSAIController.generated.h"
 

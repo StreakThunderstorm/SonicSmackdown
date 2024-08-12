@@ -43,6 +43,7 @@ public class FrameDataEditor : ModuleRules
                 "InputCore",
                 "PropertyEditor",
                 "EditorStyle",
+                "EditorWidgets",
                 "Kismet",
                 "KismetWidgets",
                 "ApplicationCore",

@@ -1,8 +1,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GraphEditor.h"
 #include "MNEditorSettings.h"
 #include "MoveNetwork.h"
+#include "Misc/NotifyHook.h"
+#include "Toolkits/AssetEditorToolkit.h"
 
 class FGGAssetEditorToolbar;
 
@@ -38,6 +41,7 @@ public:
 
 	// FSerializableObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override;
 	// End of FSerializableObject interface
 
 	UMNEditorSettings* GetSettings() const;
@@ -101,7 +105,7 @@ private:
 private:
 	UMNEditorSettings* MoveNetworkEditorSettings;
 
-	UMoveNetwork* EditingGraph;
+	TObjectPtr<UMoveNetwork> EditingGraph;
 
 	//Toolbar
 	TSharedPtr<class FMNAssetEditorToolbar> ToolbarBuilder;

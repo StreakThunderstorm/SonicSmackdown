@@ -1,9 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "OOSPlayerController.h"
-#include "OriginOfStormsMaster.h"
-#include "OOSPawn.h"
-#include "OOSGameInstance.h"
+#include "OriginOfStormsMaster/OOSPawn.h"
+#include "OriginOfStormsMaster/OOSGameInstance.h"
 #include "Engine.h"
 
 AOOSPlayerController::AOOSPlayerController()

@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2023 Rafael Marques Almeida. All Rights Reserved.
 #include "RMAMirrorAnimationMirrorTableFactory.h"
 #include "AssetTypeCategories.h"
 
@@ -15,7 +15,6 @@ UObject* URMAMirrorAnimationMirrorTableFactory::FactoryCreateNew(UClass* Class, 
 {
 
 	URMAMirrorAnimationMirrorTable* LMirrorTable = NewObject<URMAMirrorAnimationMirrorTable>(InParent, Name, Flags | RF_Transactional);
-
 	return LMirrorTable;
 
 }

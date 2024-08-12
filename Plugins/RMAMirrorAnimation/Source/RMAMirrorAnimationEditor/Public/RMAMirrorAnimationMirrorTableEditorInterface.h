@@ -1,8 +1,10 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2023 Rafael Marques Almeida. All Rights Reserved.
 #pragma once
 #include "RMAMirrorAnimationMirrorTable.h"
-#include "Blutility/Classes/EditorUtilityWidget.h"
+#include "EditorUtilityWidget.h"
 #include "RMAMirrorAnimationMirrorTableEditorInterface.generated.h"
+
+class UPropertyViewBase;
 
 //MirrorTable Editor Interface
 UCLASS()
@@ -30,6 +32,10 @@ public:
 
 	//Setter MirrorTable
 	void SetMirrorTable(URMAMirrorAnimationMirrorTable* Value);
+	
+	//Setter View Object
+	UFUNCTION(BlueprintCallable, Category = "")
+		void SetViewObject(UPropertyViewBase* ViewBase, UObject* Object);
 
 protected:
 

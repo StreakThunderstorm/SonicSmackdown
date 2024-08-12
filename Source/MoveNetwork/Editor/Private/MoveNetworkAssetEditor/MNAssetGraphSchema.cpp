@@ -5,9 +5,6 @@
 #include "MNConnectionDrawingPolicy.h"
 #include "GraphEditorActions.h"
 #include "Framework/Commands/GenericCommands.h"
-#include "../AutoLayout/MNForceDirectedLayout.h"
-#include "../AutoLayout/MNTreeLayout.h"
-#include "ToolMenus/Public/ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "AssetSchema_MoveNetwork"
 

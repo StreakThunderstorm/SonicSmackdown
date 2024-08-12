@@ -7,7 +7,7 @@ void UOOSAnimNotifyState::NotifyBegin(USkeletalMeshComponent * MeshComp, UAnimSe
 {
 	Super::NotifyBegin(MeshComp, Animation, TotalDuration);
 
-	AOOSPawn* FPOwner = Cast<AOOSPawn>(MeshComp->GetOwner());
+	AOOSPawn* InFPOwner = Cast<AOOSPawn>(MeshComp->GetOwner());
 }
 
 void UOOSAnimNotifyState::NotifyEnd(USkeletalMeshComponent * MeshComp, UAnimSequenceBase * Animation)

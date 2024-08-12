@@ -117,9 +117,9 @@ public:
 	bool bIsMakingContact = false;
 
 protected:
-	void TryHit(FOOSOverlapInfo OverlapInfo);
+	void TryHit(FOOSOverlapInfo InOverlapInfo);
 
-	void SetTransformOnHit(bool bBlocked, int Damage, float OwnMult, float OppMult);
+	void SetTransformOnHit(bool bBlocked, int InDamage, float OwnMult, float OppMult);
 
 	//Internal handlers of Hitbox overlaps.
 	UFUNCTION(meta = (BlueprintInternalUseOnly))
