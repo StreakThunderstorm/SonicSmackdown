@@ -1,4 +1,5 @@
 #include "MNEdge_SEdNode.h"
+#include "Styling/AppStyle.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/SToolTip.h"
@@ -64,23 +65,23 @@ void SMNEdge_EdNode::UpdateGraphNode()
 			+SOverlay::Slot()
 			[
 				SNew(SImage)
-				.Image( FEditorStyle::GetBrush("Graph.TransitionNode.Body") )
+				.Image( FAppStyle::GetBrush("Graph.TransitionNode.Body") )
 			]
 			+SOverlay::Slot()
 			[
 				SNew(SImage)
-				.Image( FEditorStyle::GetBrush("Graph.TransitionNode.ColorSpill") )
+				.Image( FAppStyle::GetBrush("Graph.TransitionNode.ColorSpill") )
 				.ColorAndOpacity( this, &SMNEdge_EdNode::GetEdgeColor )
 			]
 			+SOverlay::Slot()
 			[
 				SNew(SImage)
-				.Image( FEditorStyle::GetBrush("Graph.TransitionNode.Icon") )
+				.Image( FAppStyle::GetBrush("Graph.TransitionNode.Icon") )
 			]
 			+SOverlay::Slot()
 			[
 				SNew(SImage)
-				.Image( FEditorStyle::GetBrush("Graph.TransitionNode.Gloss") )
+				.Image( FAppStyle::GetBrush("Graph.TransitionNode.Gloss") )
 			]
 		];
 }

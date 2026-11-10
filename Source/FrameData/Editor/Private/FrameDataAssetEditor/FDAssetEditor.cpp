@@ -1,9 +1,10 @@
 #include "FDAssetEditor.h"
-#include "SDockTab.h"
+#include "Styling/AppStyle.h"
+#include "Widgets/Docking/SDockTab.h"
 #include "../FrameDataEditorPCH.h"
 #include "AssetToolsModule.h"
 #include "HAL/PlatformApplicationMisc.h"
-#include "GenericCommands.h"
+#include "Framework/Commands/GenericCommands.h"
 #include "FDEditorCommands.h"
 #include "GraphEditorActions.h"
 #include "IDetailsView.h"
@@ -60,17 +61,17 @@ void FFDAssetEditor::RegisterTabSpawners(const TSharedRef<class FTabManager>& In
 	InTabManager->RegisterTabSpawner(FFDAssetEditorTabs::ViewportID, FOnSpawnTab::CreateSP(this, &FFDAssetEditor::SpawnTab_Viewport))
 		.SetDisplayName(LOCTEXT("ViewportTab", "Viewport"))
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FEditorStyle::GetStyleSetName(), "FrameDataEditor.Tabs.Viewports"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "FrameDataEditor.Tabs.Viewports"));
 
 	InTabManager->RegisterTabSpawner(FFDAssetEditorTabs::FrameDataPropertyID, FOnSpawnTab::CreateSP(this, &FFDAssetEditor::SpawnTab_Properties))
 		.SetDisplayName(LOCTEXT("PropertiesTab", "Details"))
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FEditorStyle::GetStyleSetName(), "FrameDataEditor.Tabs.Details"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "FrameDataEditor.Tabs.Details"));
 
 	InTabManager->RegisterTabSpawner(FFDAssetEditorTabs::FrameDataEditorSettingsID, FOnSpawnTab::CreateSP(this, &FFDAssetEditor::SpawnTab_SocketManager))
 		.SetDisplayName(LOCTEXT("SocketManagerTab", "Socket Manager"))
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FEditorStyle::GetStyleSetName(), "FrameDataEditor.Tabs.SocketManager"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "FrameDataEditor.Tabs.SocketManager"));
 }
 
 
@@ -97,12 +98,12 @@ void FFDAssetEditor::InitFrameDataAssetEditor(const EToolkitMode::Type Mode, con
 	FFDEditorCommands::Register();
 
 	// Bind keyboard commands.
-	TSharedPtr<FUICommandList> ToolkitCommands = GetToolkitCommands();
-	ToolkitCommands->MapAction(FFDEditorCommands::Get().TogglePlay,
+	TSharedPtr<FUICommandList> FrameDataCommands = GetToolkitCommands();
+	FrameDataCommands->MapAction(FFDEditorCommands::Get().TogglePlay,
 		FExecuteAction::CreateSP(this, &FFDAssetEditor::TogglePlay_KeyboardCommand));
-	ToolkitCommands->MapAction(FFDEditorCommands::Get().StepForward,
+	FrameDataCommands->MapAction(FFDEditorCommands::Get().StepForward,
 		FExecuteAction::CreateSP(this, &FFDAssetEditor::StepForward_KeyboardCommand), EUIActionRepeatMode::RepeatEnabled);
-	ToolkitCommands->MapAction(FFDEditorCommands::Get().StepBack,
+	FrameDataCommands->MapAction(FFDEditorCommands::Get().StepBack,
 		FExecuteAction::CreateSP(this, &FFDAssetEditor::StepBack_KeyboardCommand), EUIActionRepeatMode::RepeatEnabled);
 
 	TSharedPtr<FExtender> ToolbarExtender = MakeShareable(new FExtender);
@@ -231,7 +232,7 @@ TSharedRef<SDockTab> FFDAssetEditor::SpawnTab_Properties(const FSpawnTabArgs& Ar
 	check(Args.GetTabId() == FFDAssetEditorTabs::FrameDataPropertyID);
 
 	return SNew(SDockTab)
-		.Icon(FEditorStyle::GetBrush("FrameDataEditor.Tabs.Properties"))
+		.Icon(FAppStyle::GetBrush("FrameDataEditor.Tabs.Properties"))
 		.Label(LOCTEXT("FrameDataProperties_TabTitle", "Details"))
 		[
 			DetailsView.ToSharedRef()

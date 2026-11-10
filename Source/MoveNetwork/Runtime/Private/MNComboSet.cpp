@@ -30,7 +30,7 @@ void UMNComboSet::SetMoveNetwork(UMoveNetwork* MoveNetwork)
 				Algo::Sort(ComboNodes, UMNNode_Move::Compare);
 			}
 
-			MoveCancels.Add(Node, FOOSMoveCancels(ComboNodes));
+			MoveCancels.Add(Node, FSSDMoveCancels(ComboNodes));
 		}
 	}
 }

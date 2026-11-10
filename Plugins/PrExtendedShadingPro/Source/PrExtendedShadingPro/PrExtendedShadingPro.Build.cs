@@ -12,18 +12,19 @@ public class PrExtendedShadingPro : ModuleRules
             new string[]
             {
                 "Core",
+                "CoreUObject",
+                "Engine",
             }
         );
 
         PrivateDependencyModuleNames.AddRange(
             new string[]
             {
-                "CoreUObject",
-                "Engine",
                 "Slate",
                 "SlateCore",
                 "Projects",
                 "RenderCore",
+                "Renderer",
                 "RHI",
             }
         );

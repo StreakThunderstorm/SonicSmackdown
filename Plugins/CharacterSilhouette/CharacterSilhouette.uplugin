@@ -1,0 +1,18 @@
+{
+	"FileVersion": 3,
+	"Version": 2,
+	"VersionName": "0.1-ue5.8",
+	"FriendlyName": "Character Silhouette",
+	"Description": "Coverage contour extraction and resolution-independent character silhouette strokes for UE5.8 desktop forward rendering.",
+	"Category": "Rendering",
+	"CreatedBy": "ArcForged",
+	"EnabledByDefault": true,
+	"CanContainContent": false,
+	"Modules": [
+		{
+			"Name": "CharacterSilhouette",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit"
+		}
+	]
+}

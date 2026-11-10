@@ -1,0 +1,64 @@
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Generated/Material.ush"
+#include "/Engine/Generated/VertexFactory.ush"
+#if SILHOUETTE_PAWN_LAYERS
+#include "/Plugin/PawnRenderLayers/Private/PawnRenderLayers.ush"
+#endif
+
+struct FSurfaceInterpolants
+{
+	INVARIANT_OUTPUT float4 Position : SV_POSITION;
+	FVertexFactoryInterpolantsVSToPS FactoryInterpolants;
+	float3 PositionExcludingWPO : TEXCOORD7;
+	float3 SurfacePosition : TEXCOORD8;
+};
+
+#if VERTEXSHADER
+void SurfaceVS(FVertexFactoryInput Input, out FSurfaceInterpolants Output)
+{
+	ResolvedView = ResolveView();
+	FVertexFactoryIntermediates Intermediates = GetVertexFactoryIntermediates(Input);
+	float4 WorldPosition = VertexFactoryGetWorldPosition(Input, Intermediates);
+	Output.PositionExcludingWPO = WorldPosition.xyz;
+	half3x3 TangentToLocal = VertexFactoryGetTangentToLocal(Input, Intermediates);
+	FMaterialVertexParameters MaterialParameters = GetMaterialVertexParameters(Input, Intermediates, WorldPosition.xyz, TangentToLocal);
+	WorldPosition.xyz += GetMaterialWorldPositionOffset(MaterialParameters);
+	float4 RasterPosition = VertexFactoryGetRasterizedWorldPosition(Input, Intermediates, WorldPosition);
+	Output.Position = INVARIANT(mul(RasterPosition, ResolvedView.TranslatedWorldToClip));
+	Output.SurfacePosition = WorldPosition.xyz;
+#if SILHOUETTE_PR_DEPTH_BIAS
+	Output.Position.z += GetPrimitiveData(MaterialParameters).CustomPrimitiveData[0].a;
+#endif
+#if SILHOUETTE_PAWN_LAYERS
+	Output.Position = INVARIANT(ApplyPawnRenderLayer(Output.Position, GetPrimitiveData(MaterialParameters).CustomPrimitiveData[7],
+		GetPrimitiveData(MaterialParameters).CustomPrimitiveData[8],
+		float3(ResolvedView.ViewToClip[2][2], ResolvedView.ViewToClip[3][2], ResolvedView.ViewToClip[3][3])));
+#endif
+	Output.FactoryInterpolants = VertexFactoryGetInterpolantsVSToPS(Input, Intermediates, MaterialParameters);
+}
+#endif
+
+#if PIXELSHADER
+uint CharacterIdentity;
+void SurfacePS(FSurfaceInterpolants Input OPTIONAL_IsFrontFace, out float4 OutNormal : SV_Target0,
+	out uint OutIdentity : SV_Target1, out float4 OutPosition : SV_Target2 OPTIONAL_OutDepthConservative)
+{
+	ResolvedView = ResolveView();
+	FMaterialPixelParameters MaterialParameters = GetMaterialPixelParameters(Input.FactoryInterpolants, Input.Position);
+	FPixelMaterialInputs PixelInputs;
+#if USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS
+	CalcMaterialParametersEx(MaterialParameters, PixelInputs, Input.Position, SvPositionToResolvedScreenPosition(Input.Position),
+		bIsFrontFace, SvPositionToResolvedTranslatedWorld(Input.Position), Input.PositionExcludingWPO);
+#else
+	CalcMaterialParameters(MaterialParameters, PixelInputs, Input.Position, bIsFrontFace);
+#endif
+	GetMaterialCoverageAndClipping(MaterialParameters, PixelInputs);
+#if OUTPUT_PIXEL_DEPTH_OFFSET
+	ApplyPixelDepthOffsetToMaterialParameters(MaterialParameters, PixelInputs, OutDepth);
+#endif
+	// Interpolated geometry normals avoid noisy outlines from material normal maps.
+	OutNormal = float4(normalize(MaterialParameters.TangentToWorld[2]), 1);
+	OutIdentity = CharacterIdentity;
+	OutPosition = float4(Input.SurfacePosition, 1);
+}
+#endif

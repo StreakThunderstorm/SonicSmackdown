@@ -1,0 +1,668 @@
+// UE5.5.4 forward lighting port. Engine-derived functions retain Epic's copyright.
+// Copyright Epic Games, Inc. All Rights Reserved.
+#pragma once
+#include "/Plugin/PrExtendedShadingPro/Private/PrudnikovBlend.ush"
+#include "/Plugin/PrExtendedShadingPro/Private/PrudnikovCommon.ush"
+#if PR_SHADING_FORWARD
+FLightAccumulator PrAccumulateLighting(
+	float3 TranslatedWorldPosition, half3 CameraVector, FGBufferData GBuffer, half AmbientOcclusion,
+	FDeferredLightData LightData, half4 LightAttenuation, float Dither, uint2 SVPos, 
+	inout float SurfaceShadow)
+{
+	FLightAccumulator LightAccumulator = (FLightAccumulator)0;
+
+	half3 V = -CameraVector;
+	half3 N = GBuffer.WorldNormal;
+	BRANCH if( GBuffer.ShadingModelID == SHADINGMODELID_CLEAR_COAT && CLEAR_COAT_BOTTOM_NORMAL)
+	{
+		const float2 oct1 = ((float2(GBuffer.CustomData.a, GBuffer.CustomData.z) * 4) - (512.0/255.0)) + UnitVectorToOctahedron(GBuffer.WorldNormal);
+		N = OctahedronToUnitVector(oct1);			
+	}
+	
+	float3 L = LightData.Direction;	// Already normalized
+	float3 ToLight = L;
+	float3 MaskedLightColor = LightData.Color;
+	float LightMask = 1;
+	if (LightData.bRadialLight)
+	{
+		LightMask = GetLocalLightAttenuation( TranslatedWorldPosition, LightData, ToLight, L );
+#if ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+		//LightAttenuation *= ComputeTransmittance(DerivedParams.TranslatedWorldPosition, LightData.TranslatedWorldPosition, 256);
+		LightAttenuation *= AVSM_SampleTransmittance(TranslatedWorldPosition, LightData.TranslatedWorldPosition);
+#endif // ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+		MaskedLightColor *= LightMask;
+	}
+
+	LightAccumulator.EstimatedCost += 0.3f;		// running the PixelShader at all has a cost
+
+	BRANCH
+	if( LightMask > 0 )
+	{
+		FShadowTerms Shadow;
+		Shadow.SurfaceShadow = AmbientOcclusion;
+		Shadow.TransmissionShadow = 1;
+		Shadow.TransmissionThickness = 1;
+		Shadow.HairTransmittance.OpaqueVisibility = 1;
+		const float ContactShadowOpacity = GBuffer.CustomData.a;
+		GetShadowTerms(GBuffer.Depth, GBuffer.PrecomputedShadowFactors, GBuffer.ShadingModelID, ContactShadowOpacity,
+			LightData, TranslatedWorldPosition, L, LightAttenuation, Dither, Shadow);
+		SurfaceShadow = Shadow.SurfaceShadow;
+		// Directional shadows are blended once after the layers; local shadows are applied per light.
+		if (!LightData.bRadialLight)
+		{
+			Shadow.SurfaceShadow = 1;
+			Shadow.TransmissionShadow = 1;
+		}
+		else
+		{
+			#ifdef PR_SHADER_SHADOW_BLEND_FUNCTION
+				PR_SHADER_SHADOW_BLEND_FUNCTION(Shadow.SurfaceShadow)
+			#endif
+		}
+
+		LightAccumulator.EstimatedCost += 0.3f;		// add the cost of getting the shadow terms
+
+#if SHADING_PATH_MOBILE
+		const bool bNeedsSeparateSubsurfaceLightAccumulation = UseSubsurfaceProfile(GBuffer.ShadingModelID);
+		
+		FDirectLighting Lighting = (FDirectLighting)0;
+
+		half NoL = max(0, dot(GBuffer.WorldNormal, L));
+	#if TRANSLUCENCY_NON_DIRECTIONAL
+		NoL = 1.0f;
+	#endif
+		BRANCH
+		if (LightData.bRectLight)
+		{
+			FRect Rect = GetRect( ToLight, LightData );
+			const FRectTexture SourceTexture = ConvertToRectTexture(LightData);
+
+		#if REFERENCE_QUALITY
+			Lighting = IntegrateBxDF( GBuffer, N, V, Rect, Shadow, SourceTexture, SVPos );
+		#else
+			Lighting = IntegrateBxDF( GBuffer, N, V, Rect, Shadow, SourceTexture);
+		#endif		
+		}
+		else
+		{
+			Lighting = EvaluateBxDF(GBuffer, N, V, L, NoL, Shadow);
+		}
+
+		Lighting.Specular *= LightData.SpecularScale;
+		Lighting.Diffuse *= LightData.DiffuseScale;
+				
+		LightAccumulator_AddSplit( LightAccumulator, Lighting.Diffuse, Lighting.Specular, Lighting.Diffuse, MaskedLightColor * Shadow.SurfaceShadow, bNeedsSeparateSubsurfaceLightAccumulation );
+		LightAccumulator_AddSplit( LightAccumulator, Lighting.Transmission, 0.0f, Lighting.Transmission, MaskedLightColor * Shadow.TransmissionShadow, bNeedsSeparateSubsurfaceLightAccumulation );
+#else // SHADING_PATH_MOBILE
+		BRANCH
+		if( Shadow.SurfaceShadow + Shadow.TransmissionShadow > 0 )
+		{
+			const bool bNeedsSeparateSubsurfaceLightAccumulation = UseSubsurfaceProfile(GBuffer.ShadingModelID);
+
+		#if NON_DIRECTIONAL_DIRECT_LIGHTING
+			float Lighting;
+
+			if( LightData.bRectLight )
+			{
+				FRect Rect = GetRect( ToLight, LightData );
+
+				Lighting = IntegrateLight( Rect );
+			}
+			else
+			{
+				FCapsuleLight Capsule = GetCapsule( ToLight, LightData );
+
+				Lighting = IntegrateLight( Capsule, LightData.bInverseSquared );
+			}
+
+			float3 LightingDiffuse = Diffuse_Lambert( GBuffer.DiffuseColor ) * Lighting;
+			LightAccumulator_AddSplit(LightAccumulator, LightingDiffuse, 0.0f, 0, MaskedLightColor * Shadow.SurfaceShadow, bNeedsSeparateSubsurfaceLightAccumulation);
+		#else
+			FDirectLighting Lighting;
+
+			if (LightData.bRectLight)
+			{
+				FRect Rect = GetRect( ToLight, LightData );
+				const FRectTexture SourceTexture = ConvertToRectTexture(LightData);
+
+				#if REFERENCE_QUALITY
+					Lighting = IntegrateBxDF( GBuffer, N, V, Rect, Shadow, SourceTexture, SVPos );
+				#else
+					Lighting = IntegrateBxDF( GBuffer, N, V, Rect, Shadow, SourceTexture);
+				#endif
+			}
+			else
+			{
+				FCapsuleLight Capsule = GetCapsule( ToLight, LightData );
+
+				#if REFERENCE_QUALITY
+					Lighting = IntegrateBxDF( GBuffer, N, V, Capsule, Shadow, SVPos );
+				#else
+					Lighting = IntegrateBxDF( GBuffer, N, V, Capsule, Shadow, LightData.bInverseSquared );
+				#endif
+			}
+
+			Lighting.Specular *= LightData.SpecularScale;
+			// Keep the directional diffuse layer independent of N.L; SelfShadow is blended separately.
+			if (!LightData.bRadialLight)
+				Lighting.Diffuse = Diffuse_Lambert(GBuffer.DiffuseColor);
+			Lighting.Diffuse *= LightData.DiffuseScale;
+
+		#if USE_LIGHT_FUNCTION_ATLAS
+			MaskedLightColor *= GetLocalLightFunctionCommon(TranslatedWorldPosition, LightData.LightFunctionAtlasLightIndex);
+		#endif
+
+			LightAccumulator_AddSplit( LightAccumulator, Lighting.Diffuse, Lighting.Specular, Lighting.Diffuse, MaskedLightColor * Shadow.SurfaceShadow, bNeedsSeparateSubsurfaceLightAccumulation );
+			LightAccumulator_AddSplit( LightAccumulator, Lighting.Transmission, 0.0f, Lighting.Transmission, MaskedLightColor * Shadow.TransmissionShadow, bNeedsSeparateSubsurfaceLightAccumulation );
+
+			LightAccumulator.EstimatedCost += 0.4f;		// add the cost of the lighting computations (should sum up to 1 form one light)
+		#endif
+		}
+#endif // SHADING_PATH_MOBILE
+	}
+	return LightAccumulator;
+}
+
+FDeferredLightingSplit PrLighting(
+	float3 TranslatedWorldPosition, float3 CameraVector, FGBufferData GBuffer, float AmbientOcclusion, 
+	FDeferredLightData LightData, float4 LightAttenuation, float Dither, uint2 SVPos, 
+	inout float SurfaceShadow)
+{
+	FLightAccumulator LightAccumulator = PrAccumulateLighting(TranslatedWorldPosition, CameraVector, GBuffer, AmbientOcclusion, LightData, LightAttenuation, Dither, SVPos, SurfaceShadow);
+	return LightAccumulator_GetResultSplit(LightAccumulator);
+}
+
+FDeferredLightingSplit PrDirectLighting(
+	uint2 PixelPos,
+	uint GridIndex, float3 TranslatedWorldPosition, float3 CameraVector, FGBufferData GBufferData, float2 ScreenUV, uint PrimitiveId, uint EyeIndex, float Dither, 
+	float InDirectionalLightCloudShadow, float3 InDirectionalLightAtmosphereTransmittance, inout float OutDirectionalLightShadow,
+	bool bSeparateMainDirLightLuminance, inout float3 SeparatedMainDirLightLuminance, bool bSkipDirLightVirtualShadowMapEvaluation, out FDeferredLightingSplit DirectionalLighting)
+{
+	float4 DynamicShadowFactors = 1;
+
+	#if MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED
+		DynamicShadowFactors = GetForwardDynamicShadowFactors(ScreenUV);
+	#endif
+
+	FDeferredLightingSplit DirectLighting;
+	DirectLighting.DiffuseLighting = 0;
+	DirectLighting.SpecularLighting = 0;
+	DirectLighting.LightingLuminance = 0;
+	DirectionalLighting = DirectLighting;
+
+	float SpecularScale = 1;
+#if TRANSLUCENCY_ANY_VOLUMETRIC
+	// No specular on volumetric translucency lighting modes
+	SpecularScale = 0;
+#endif
+
+	uint LightingChannelMask = GetPrimitive_LightingChannelMask(PrimitiveId);
+
+	const FDirectionalLightData DirectionalLightData = GetDirectionalLightData(EyeIndex);
+
+	BRANCH
+	if (DirectionalLightData.HasDirectionalLight
+#if MATERIALBLENDING_ANY_TRANSLUCENT
+		&& DirectionalLightData.bAffectsTranslucentLighting > 0
+#endif
+		)
+	{
+		half4 PreviewShadowMapChannelMask = 1;
+		uint  DirLightingChannelMask = LIGHTING_CHANNEL_MASK;
+		FDeferredLightData LightData = ConvertToDeferredLight(DirectionalLightData, SpecularScale, PreviewShadowMapChannelMask, DirLightingChannelMask);
+		#if USE_HAIR_COMPLEX_TRANSMITTANCE
+		if (GBufferData.ShadingModelID == SHADINGMODELID_HAIR)
+		{
+			LightData.HairTransmittance = EvaluateDualScattering(GBufferData, -CameraVector, LightData.Direction);
+		}
+		#endif
+
+		// We want to force the directional light shadow when using water material to see shadow on the water. This could be an option later.
+		#if DISABLE_FORWARD_DIRECTIONAL_LIGHT_SHADOW
+			float4 LightAttenuation = float4(1, 1, 1, 1);
+		#elif ((MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED) && !MATERIAL_SHADINGMODEL_SINGLELAYERWATER)
+			float DynamicShadowing = dot(PreviewShadowMapChannelMask, DynamicShadowFactors);
+
+			// In the forward shading path we can't separate per-object shadows from CSM, since we only spend one light attenuation channel per light
+			// If CSM is enabled (distance fading to precomputed shadowing is active), treat all of our dynamic shadowing as whole scene shadows that will be faded out at the max CSM distance
+			// If CSM is not enabled, allow our dynamic shadowing to coexist with precomputed shadowing
+			float PerObjectShadowing = LightData.DistanceFadeMAD.y < 0.0f ? 1.0f : DynamicShadowing;
+			float WholeSceneShadowing = LightData.DistanceFadeMAD.y < 0.0f ? DynamicShadowing : 1.0f;
+		
+			float4 LightAttenuation = float4(WholeSceneShadowing.xx, PerObjectShadowing.xx);
+		#else
+			LightData.ShadowedBits = 1;
+			LightData.ShadowMapChannelMask.x = 1;
+			#if TRANSLUCENCY_LIGHTING_SURFACE_FORWARDSHADING
+				GBufferData.PrecomputedShadowFactors.x = ComputeDirectionalLightStaticShadowing(TranslatedWorldPosition).x;
+			#else
+				GBufferData.PrecomputedShadowFactors.x = 1;
+			#endif
+			bool bUnused = false;
+			float DynamicShadowFactor = ComputeDirectionalLightDynamicShadowing(TranslatedWorldPosition, GBufferData.Depth, bUnused);
+			
+			#if VIRTUAL_SHADOW_MAP
+			BRANCH
+			if ( !bSkipDirLightVirtualShadowMapEvaluation && ForwardLightData.DirectionalLightVSM != INDEX_NONE )
+			{
+				#if SUPPORT_VSM_FOWARD_QUALITY == 1
+				{
+					const FLightShaderParameters DirectionalLight = ConvertToLightShaderParameters(LightData);
+
+					const float ScreenRayLengthWorld = VirtualShadowMap.ScreenRayLength * View.ClipToView[1][1] * GBufferData.Depth;
+					float SMRTRayOffset = ScreenRayLengthWorld;
+
+					FVirtualShadowMapSampleResult VirtualShadowMapSample = TraceDirectional(
+						ForwardLightData.DirectionalLightVSM,
+						DirectionalLight,
+						PixelPos,
+						GBufferData.Depth,
+						TranslatedWorldPosition,
+						SMRTRayOffset,
+						Dither,
+						GBufferData.WorldNormal);
+
+					FilterVirtualShadowMapSampleResult(PixelPos, VirtualShadowMapSample);
+
+					DynamicShadowFactor *= VirtualShadowMapSample.ShadowFactor;
+				}
+				#else
+				{
+					FVirtualShadowMapSampleResult VirtualShadowMapSample = SampleVirtualShadowMapDirectional( ForwardLightData.DirectionalLightVSM, TranslatedWorldPosition );
+					DynamicShadowFactor *= VirtualShadowMapSample.ShadowFactor;
+				}
+				#endif
+			}
+			#endif
+
+			float4 LightAttenuation = float4(DynamicShadowFactor.x, DynamicShadowFactor.x, 1, 1);
+		#endif
+
+		FDeferredLightingSplit NewLighting = PrLighting(TranslatedWorldPosition, -CameraVector, GBufferData, 1, LightData, LightAttenuation, Dither, uint2(0,0), OutDirectionalLightShadow);
+
+		FLATTEN
+		if (DirLightingChannelMask & LightingChannelMask)
+		{
+		#if ENABLE_FORWARD_CLOUD_SHADOW
+			// This cannot go into LightAttenuation due to some distance based attenuation math being applied.
+			NewLighting.DiffuseLighting *= InDirectionalLightCloudShadow;
+			NewLighting.SpecularLighting *= InDirectionalLightCloudShadow;
+			NewLighting.LightingLuminance *= InDirectionalLightCloudShadow;
+		#endif
+			NewLighting.DiffuseLighting.rgb *= InDirectionalLightAtmosphereTransmittance;
+			NewLighting.SpecularLighting.rgb *= InDirectionalLightAtmosphereTransmittance;
+			NewLighting.LightingLuminance *= Luminance(InDirectionalLightAtmosphereTransmittance);
+
+			if (bSeparateMainDirLightLuminance)
+			{
+				SeparatedMainDirLightLuminance += NewLighting.DiffuseLighting.rgb;
+				SeparatedMainDirLightLuminance += NewLighting.SpecularLighting.rgb;
+			}
+			else
+			{
+				DirectionalLighting.DiffuseLighting += NewLighting.DiffuseLighting;
+				DirectionalLighting.SpecularLighting += NewLighting.SpecularLighting;
+				DirectionalLighting.LightingLuminance += NewLighting.LightingLuminance;
+			}
+		}
+	}
+
+#if !DISABLE_FORWARD_LOCAL_LIGHTS && (PR_SHADER_USES_DynamicLight || PR_SHADER_USES_DynamicLightSpecular)
+
+	const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
+
+	
+	// Limit max to ForwardLightData.NumLocalLights.
+	// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
+	const uint NumLightsInGridCell = min(CulledLightsGridHeader.NumLights, GetMaxLightsPerCell(EyeIndex));
+
+	LOOP
+	for (uint GridLightListIndex = 0; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
+	{
+		half4 PreviewShadowMapChannelMask = 1;
+		uint  LocalLightingChannelMask = LIGHTING_CHANNEL_MASK;
+		const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGridHeader.DataStartIndex + GridLightListIndex, EyeIndex);
+		
+	#if MATERIALBLENDING_ANY_TRANSLUCENT
+		if(UnpackAffectsTranslucentLighting(LocalLight) == 0)
+		{
+			continue;
+		}
+	#endif
+
+		FDeferredLightData LightData = ConvertToDeferredLight(LocalLight, SpecularScale, PreviewShadowMapChannelMask, LocalLightingChannelMask);
+
+		// Rect light optionally supported in forward.
+		LightData.bRectLight = LightData.bRectLight && SUPPORT_RECTLIGHT_ON_FORWARD_LIT_TRANSLUCENT;
+		#if USE_HAIR_COMPLEX_TRANSMITTANCE
+		if (GBufferData.ShadingModelID == SHADINGMODELID_HAIR)
+		{
+			LightData.HairTransmittance = EvaluateDualScattering(GBufferData, -CameraVector, LightData.Direction);
+		}
+		#endif
+		#if USE_IES_PROFILE
+		LightData.Color *= ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
+		#endif
+
+		float DynamicShadowing = dot(PreviewShadowMapChannelMask, DynamicShadowFactors);
+		float4 LightAttenuation = float4(1, 1, DynamicShadowing.x, DynamicShadowing.x);
+		float SurfaceShadow = 1.0f;
+		FDeferredLightingSplit NewLighting = PrLighting(TranslatedWorldPosition, -CameraVector, GBufferData, 1, LightData, LightAttenuation, Dither, uint2(0,0), SurfaceShadow);
+
+		FLATTEN
+		if (LocalLightingChannelMask & LightingChannelMask)
+		{
+			DirectLighting.DiffuseLighting += NewLighting.DiffuseLighting;
+			DirectLighting.SpecularLighting += NewLighting.SpecularLighting;
+		}
+	}
+
+#endif
+
+	// Zero out direct lighting if show flag is disabled
+	if (ForwardLightData.DirectLightingShowFlag == 0)
+	{
+		DirectLighting.DiffuseLighting = 0.0f;
+		DirectLighting.SpecularLighting = 0.0f;
+		DirectionalLighting.DiffuseLighting = 0.0f;
+		DirectionalLighting.SpecularLighting = 0.0f;
+	}
+
+	return DirectLighting;
+}
+
+void PrComputeIndirect(
+	FMaterialPixelParameters MaterialParameters, 
+	FVertexFactoryInterpolantsVSToPS Interpolants,
+	FBasePassInterpolantsVSToPS BasePassInterpolants,
+	VTPageTableResult LightmapVTPageTableResult,
+	bool bEvaluateBackface,
+	float3 DiffuseDir,
+	float3 VolumetricLightmapBrickTextureUVs,
+	out float3 OutDiffuseLighting,
+	out float3 OutSubsurfaceLighting,
+	out float OutIndirectIrradiance, out float3 OutSkyLighting)
+{
+	OutIndirectIrradiance = 0;
+	OutDiffuseLighting = 0;
+	OutSubsurfaceLighting = 0;
+	OutSkyLighting = 0;
+	LightmapUVType SkyOcclusionUV = (LightmapUVType)0;
+	uint SkyOcclusionDataIndex = 0u;
+
+	#if PR_SHADER_LM_INDIRECT
+	#if PRECOMPUTED_IRRADIANCE_VOLUME_LIGHTING
+
+		#if TRANSLUCENCY_LIGHTING_VOLUMETRIC_NONDIRECTIONAL || TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_NONDIRECTIONAL
+
+			#if TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_NONDIRECTIONAL
+				FOneBandSHVectorRGB IrradianceSH;
+				IrradianceSH.R.V = BasePassInterpolants.VertexIndirectAmbient.x;
+				IrradianceSH.G.V = BasePassInterpolants.VertexIndirectAmbient.y;
+				IrradianceSH.B.V = BasePassInterpolants.VertexIndirectAmbient.z;
+			#else
+				FOneBandSHVectorRGB IrradianceSH = GetVolumetricLightmapSH1(VolumetricLightmapBrickTextureUVs);
+			#endif
+
+			FOneBandSHVector DiffuseTransferSH = CalcDiffuseTransferSH1(1);
+			OutDiffuseLighting = max(float3(0,0,0), DotSH1(IrradianceSH, DiffuseTransferSH)) / PI;
+
+		#else
+
+			#if TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_DIRECTIONAL
+				FThreeBandSHVectorRGB IrradianceSH = (FThreeBandSHVectorRGB)0;
+				IrradianceSH.R.V0 = BasePassInterpolants.VertexIndirectSH[0];
+				IrradianceSH.G.V0 = BasePassInterpolants.VertexIndirectSH[1];
+				IrradianceSH.B.V0 = BasePassInterpolants.VertexIndirectSH[2];
+			#elif TRANSLUCENCY_LIGHTING_VOLUMETRIC_DIRECTIONAL
+				// Limit Volume Directional to SH2 for performance
+				FTwoBandSHVectorRGB IrradianceSH2 = GetVolumetricLightmapSH2(VolumetricLightmapBrickTextureUVs);
+				FThreeBandSHVectorRGB IrradianceSH = (FThreeBandSHVectorRGB)0;
+				IrradianceSH.R.V0 = IrradianceSH2.R.V;
+				IrradianceSH.G.V0 = IrradianceSH2.G.V;
+				IrradianceSH.B.V0 = IrradianceSH2.B.V;
+			#else
+				FThreeBandSHVectorRGB IrradianceSH = GetVolumetricLightmapSH3(VolumetricLightmapBrickTextureUVs);
+			#endif
+
+			// Diffuse convolution
+			FThreeBandSHVector DiffuseTransferSH = CalcDiffuseTransferSH3(DiffuseDir, 1);
+			OutDiffuseLighting = max(float3(0,0,0), DotSH3(IrradianceSH, DiffuseTransferSH)) / PI;
+
+			#if SHADINGMODEL_REQUIRES_BACKFACE_LIGHTING
+			if (bEvaluateBackface)
+			{
+				FThreeBandSHVector SubsurfaceTransferSH = CalcDiffuseTransferSH3(-DiffuseDir, 1);
+				OutSubsurfaceLighting += max(float3(0,0,0), DotSH3(IrradianceSH, SubsurfaceTransferSH)) / PI;
+			}
+			#endif
+		#endif
+
+		// Visualize volumetric lightmap texel positions
+		//OutDiffuseLighting = frac(VolumetricLightmapBrickTextureUVs / View.VolumetricLightmapBrickTexelSize - .5f);
+
+	// Method for movable components which want to use a volume texture of interpolated SH samples
+	#elif CACHED_VOLUME_INDIRECT_LIGHTING
+		if (View.IndirectLightingCacheShowFlag > 0.0f)
+		{
+			// Compute volume texture UVs from world position
+			float3 VolumeUVs = WSHackToFloat(GetWorldPosition(MaterialParameters)) * IndirectLightingCache.IndirectLightingCachePrimitiveScale + IndirectLightingCache.IndirectLightingCachePrimitiveAdd;
+			// Clamp UV to be within the valid region
+			// Pixels outside of the object's bounding box would read garbage otherwise
+			VolumeUVs = clamp(VolumeUVs, IndirectLightingCache.IndirectLightingCacheMinUV, IndirectLightingCache.IndirectLightingCacheMaxUV);
+			float4 Vector0 = Texture3DSample(IndirectLightingCache.IndirectLightingCacheTexture0, IndirectLightingCache.IndirectLightingCacheTextureSampler0, VolumeUVs);
+
+			// For debugging
+			#define AMBIENTONLY 0
+			#if AMBIENTONLY
+
+				OutDiffuseLighting = Vector0.rgb / SHAmbientFunction() / PI;
+
+			#else
+
+				float4 Vector1 = Texture3DSample(IndirectLightingCache.IndirectLightingCacheTexture1, ILCSharedSampler1, VolumeUVs);
+				float4 Vector2 = Texture3DSample(IndirectLightingCache.IndirectLightingCacheTexture2, ILCSharedSampler2, VolumeUVs);
+
+				// Construct the SH environment
+				FTwoBandSHVectorRGB CachedSH;
+				CachedSH.R.V = float4(Vector0.x, Vector1.x, Vector2.x, Vector0.w);
+				CachedSH.G.V = float4(Vector0.y, Vector1.y, Vector2.y, Vector1.w);
+				CachedSH.B.V = float4(Vector0.z, Vector1.z, Vector2.z, Vector2.w);
+
+				// Diffuse convolution
+				FTwoBandSHVector DiffuseTransferSH = CalcDiffuseTransferSH(DiffuseDir, 1);
+				OutDiffuseLighting = max(half3(0,0,0), DotSH(CachedSH, DiffuseTransferSH)) / PI;
+
+				#if SHADINGMODEL_REQUIRES_BACKFACE_LIGHTING
+				if (bEvaluateBackface)
+				{
+					FTwoBandSHVector SubsurfaceTransferSH = CalcDiffuseTransferSH(-DiffuseDir, 1);
+					OutSubsurfaceLighting += max(half3(0,0,0), DotSH(CachedSH, SubsurfaceTransferSH)) / PI;
+				}
+				#endif
+
+			#endif
+		}
+
+	// Method for movable components which want to use a single interpolated SH sample
+	#elif CACHED_POINT_INDIRECT_LIGHTING 
+		if (View.IndirectLightingCacheShowFlag > 0.0f)
+		{
+		#if TRANSLUCENCY_LIGHTING_VOLUMETRIC_NONDIRECTIONAL
+
+			FOneBandSHVectorRGB PointIndirectLighting;
+			PointIndirectLighting.R.V = IndirectLightingCache.IndirectLightingSHCoefficients0[0].x;
+			PointIndirectLighting.G.V = IndirectLightingCache.IndirectLightingSHCoefficients0[1].x;
+			PointIndirectLighting.B.V = IndirectLightingCache.IndirectLightingSHCoefficients0[2].x;
+
+			FOneBandSHVector DiffuseTransferSH = CalcDiffuseTransferSH1(1);
+			OutDiffuseLighting = DotSH1(PointIndirectLighting, DiffuseTransferSH);
+
+			#if SHADINGMODEL_REQUIRES_BACKFACE_LIGHTING
+			if (bEvaluateBackface)
+			{
+				FOneBandSHVector SubsurfaceTransferSH = CalcDiffuseTransferSH1(1);
+				OutSubsurfaceLighting += DotSH1(PointIndirectLighting, SubsurfaceTransferSH);
+			}
+			#endif
+
+		#else
+
+			FThreeBandSHVectorRGB PointIndirectLighting;
+			PointIndirectLighting.R.V0 = IndirectLightingCache.IndirectLightingSHCoefficients0[0];
+			PointIndirectLighting.R.V1 = IndirectLightingCache.IndirectLightingSHCoefficients1[0];
+			PointIndirectLighting.R.V2 = IndirectLightingCache.IndirectLightingSHCoefficients2[0];
+
+			PointIndirectLighting.G.V0 = IndirectLightingCache.IndirectLightingSHCoefficients0[1];
+			PointIndirectLighting.G.V1 = IndirectLightingCache.IndirectLightingSHCoefficients1[1];
+			PointIndirectLighting.G.V2 = IndirectLightingCache.IndirectLightingSHCoefficients2[1];
+
+			PointIndirectLighting.B.V0 = IndirectLightingCache.IndirectLightingSHCoefficients0[2];
+			PointIndirectLighting.B.V1 = IndirectLightingCache.IndirectLightingSHCoefficients1[2];
+			PointIndirectLighting.B.V2 = IndirectLightingCache.IndirectLightingSHCoefficients2[2];
+
+			FThreeBandSHVector DiffuseTransferSH = CalcDiffuseTransferSH3(DiffuseDir, 1);
+			// Compute diffuse lighting which takes the normal into account
+			OutDiffuseLighting = max(half3(0,0,0), DotSH3(PointIndirectLighting, DiffuseTransferSH));
+
+			#if SHADINGMODEL_REQUIRES_BACKFACE_LIGHTING
+			if (bEvaluateBackface)
+			{
+				FThreeBandSHVector SubsurfaceTransferSH = CalcDiffuseTransferSH3(-DiffuseDir, 1);
+				OutSubsurfaceLighting += max(half3(0, 0, 0), DotSH3(PointIndirectLighting, SubsurfaceTransferSH));
+			}
+			#endif
+		
+		#endif
+		}
+
+	// High quality texture lightmaps
+	#elif HQ_TEXTURE_LIGHTMAP
+		LightmapUVType LightmapUV0, LightmapUV1;
+		uint LightmapDataIndex;
+		GetLightMapCoordinates(Interpolants, LightmapUV0, LightmapUV1, LightmapDataIndex);
+		SkyOcclusionUV = LightmapUV0;
+		SkyOcclusionDataIndex = LightmapDataIndex;
+		GetLightMapColorHQ(LightmapVTPageTableResult, LightmapUV0, LightmapUV1, LightmapDataIndex, DiffuseDir, MaterialParameters.SvPosition.xy, bEvaluateBackface, OutDiffuseLighting, OutSubsurfaceLighting);
+
+	// Low quality texture lightmaps
+	#elif LQ_TEXTURE_LIGHTMAP
+		LightmapUVType LightmapUV0, LightmapUV1;
+		uint LightmapDataIndex;
+		GetLightMapCoordinates(Interpolants, LightmapUV0, LightmapUV1, LightmapDataIndex);
+		GetLightMapColorLQ(LightmapVTPageTableResult, LightmapUV0, LightmapUV1, LightmapDataIndex, DiffuseDir, bEvaluateBackface, OutDiffuseLighting, OutSubsurfaceLighting);
+
+	#endif
+
+	// Apply indirect lighting scale while we have only accumulated lightmaps
+	OutDiffuseLighting *= View.PrecomputedIndirectLightingColorScale;
+	OutSubsurfaceLighting *= View.PrecomputedIndirectLightingColorScale;
+
+	#endif // PR_SHADER_LM_INDIRECT
+	#if PR_SHADER_SL_INDIRECT
+	#if !PR_SHADER_LM_INDIRECT && (HQ_TEXTURE_LIGHTMAP || LQ_TEXTURE_LIGHTMAP)
+		// Baked skylight occlusion still needs lightmap coordinates when the lightmap layer itself is absent.
+		LightmapUVType LightmapUV0, LightmapUV1;
+		GetLightMapCoordinates(Interpolants, LightmapUV0, LightmapUV1, SkyOcclusionDataIndex);
+		SkyOcclusionUV = LightmapUV0;
+	#endif
+	float3 SkyDiffuseLighting;
+	float3 SkySubsurfaceLighting;
+	GetSkyLighting(MaterialParameters, LightmapVTPageTableResult, bEvaluateBackface, DiffuseDir, SkyOcclusionUV, SkyOcclusionDataIndex, VolumetricLightmapBrickTextureUVs, SkyDiffuseLighting, SkySubsurfaceLighting);
+
+	OutSubsurfaceLighting += SkySubsurfaceLighting;
+
+	// Sky lighting must contribute to IndirectIrradiance for ReflectionEnvironment lightmap mixing
+	OutSkyLighting = SkyDiffuseLighting;
+
+	#endif // PR_SHADER_SL_INDIRECT
+	#if PR_SHADER_LM_INDIRECT && (HQ_TEXTURE_LIGHTMAP || LQ_TEXTURE_LIGHTMAP || CACHED_VOLUME_INDIRECT_LIGHTING || CACHED_POINT_INDIRECT_LIGHTING || PRECOMPUTED_IRRADIANCE_VOLUME_LIGHTING)
+		OutIndirectIrradiance = Luminance(OutDiffuseLighting);
+	#endif
+}
+
+void PrShading(inout float3 Color, inout float IndirectIrradiance, FMaterialPixelParameters MaterialParameters,
+    FVertexFactoryInterpolantsVSToPS Interpolants, FBasePassInterpolantsVSToPS BasePassInterpolants, VTPageTableResult LightmapVTPageTableResult,
+    FGBufferData GBuffer, float3 DiffuseDir, float3 VolumetricLightmapBrickTextureUVs, uint EyeIndex)
+{
+    FPrShadingValues Values = PrShadingValues_Make();
+    float3 DiffuseColor = GBuffer.DiffuseColor;
+    GBuffer.DiffuseColor = 1;
+    uint GridIndex = ComputeLightGridCellIndex((uint2)((MaterialParameters.SvPosition.xy - ResolvedView.ViewRectMin.xy)
+        * View.LightProbeSizeRatioAndInvSizeRatio.zw), MaterialParameters.SvPosition.w, EyeIndex);
+    float2 NDC = MaterialParameters.ScreenPosition.xy / MaterialParameters.ScreenPosition.w;
+    float2 ScreenUV = NDC * ResolvedView.ScreenPositionScaleBias.xy + ResolvedView.ScreenPositionScaleBias.wz;
+    float2 ShadowUV = CalculateNearestResolvedDepthScreenUV(ScreenUV, MaterialParameters.ScreenPosition.w);
+    float IndirectOcclusion = GetIndirectOcclusion(ShadowUV, HasDynamicIndirectShadowCasterRepresentation(GBuffer));
+    float3 LightmapColor, SubsurfaceColor, SkyColor;
+    float LightmapIrradiance;
+    PrComputeIndirect(MaterialParameters, Interpolants, BasePassInterpolants, LightmapVTPageTableResult, false, DiffuseDir,
+        VolumetricLightmapBrickTextureUVs, LightmapColor, SubsurfaceColor, LightmapIrradiance, SkyColor);
+    IndirectIrradiance = 0;
+    #if PR_SHADER_LM_INDIRECT
+        Values.IndirectLayer.Color = LightmapColor * IndirectOcclusion;
+        Values.IndirectLayer.LayerModifier = DiffuseColor;
+        Values.IndirectLayer.bEnabled = true;
+        IndirectIrradiance += Luminance(LightmapColor);
+    #endif
+    #if ENABLE_SKY_LIGHT && PR_SHADER_SL_INDIRECT
+        Values.SkylightLayer.Color = SkyColor * IndirectOcclusion;
+        Values.SkylightLayer.LayerModifier = DiffuseColor;
+        Values.SkylightLayer.bEnabled = true;
+        IndirectIrradiance += Luminance(SkyColor);
+    #endif
+    IndirectIrradiance *= IndirectOcclusion;
+    Values.DiffuseLayer.Color = GBuffer.BaseColor;
+    Values.DiffuseLayer.bEnabled = true;
+    float Shadow = 1;
+    float3 UnusedLuminance = 0;
+    float Dither = InterleavedGradientNoise(MaterialParameters.SvPosition.xy, View.StateFrameIndexMod8);
+    float CloudShadow = 1;
+    #if NEEDS_BASEPASS_CLOUD_SHADOW_INTERPOLATOR
+        CloudShadow = BasePassInterpolants.VertexCloudShadow;
+    #endif
+    float3 AtmosphereTransmittance = 1;
+    #if NEEDS_BASEPASS_PIXEL_FOGGING && PROJECT_SUPPORT_SKY_ATMOSPHERE
+        if (ResolvedView.AtmosphereLightDiscCosHalfApexAngle_PPTrans[0].y > 0)
+        {
+            float3 PlanetPosition = (GetTranslatedWorldPosition(MaterialParameters)
+                - ResolvedView.SkyPlanetTranslatedWorldCenterAndViewHeight.xyz) * CM_TO_SKY_UNIT;
+            AtmosphereTransmittance = GetAtmosphereTransmittance(PlanetPosition, ResolvedView.AtmosphereLightDirection[0].xyz,
+                ResolvedView.SkyAtmosphereBottomRadiusKm, ResolvedView.SkyAtmosphereTopRadiusKm,
+                View.TransmittanceLutTexture, SkyAtmTransmittanceSharedSampler);
+        }
+    #endif
+    FDeferredLightingSplit Directional;
+    FDeferredLightingSplit Local = PrDirectLighting(MaterialParameters.SvPosition.xy, GridIndex,
+        MaterialParameters.WorldPosition_CamRelative, MaterialParameters.CameraVector, GBuffer, ShadowUV,
+        MaterialParameters.PrimitiveId, EyeIndex, Dither, CloudShadow, AtmosphereTransmittance, Shadow,
+        false, UnusedLuminance, false, Directional);
+    Values.DirectionalLightLayer.Color = Directional.DiffuseLighting.rgb;
+    Values.DirectionalLightLayer.LayerModifier = DiffuseColor;
+    Values.DirectionalLightLayer.bEnabled = true;
+    Values.ShadowLayer.Color = Shadow * GBuffer.GBufferAO;
+    Values.ShadowLayer.bEnabled = true;
+    const FDirectionalLightData DirectionalData = GetDirectionalLightData(EyeIndex);
+    Values.SelfShadowLayer.Color = max(0, dot(DiffuseDir, DirectionalData.DirectionalLightDirection));
+    Values.SelfShadowLayer.bEnabled = true;
+    #if !MATERIAL_FULLY_ROUGH
+        Values.SpecularLayer.Color = Directional.SpecularLighting.rgb;
+        Values.SpecularLayer.bEnabled = true;
+        #if PR_SHADER_USES_Reflection
+        Values.ReflectionLayer.Color = GetImageBasedReflectionLighting(MaterialParameters, GBuffer.Roughness, GBuffer.SpecularColor,
+            IndirectIrradiance, GridIndex, GetPrimitiveData(MaterialParameters).SingleCaptureIndex, EyeIndex) * IndirectOcclusion;
+        Values.ReflectionLayer.bEnabled = true;
+        #endif
+    #endif
+    #if !DISABLE_FORWARD_LOCAL_LIGHTS && (PR_SHADER_USES_DynamicLight || PR_SHADER_USES_DynamicLightSpecular)
+        Values.DynamicLightLayer.Color = Local.DiffuseLighting.rgb;
+        Values.DynamicLightLayer.LayerModifier = DiffuseColor;
+        Values.DynamicLightLayer.bEnabled = true;
+        #if !MATERIAL_FULLY_ROUGH
+            Values.DynamicLightSpecularLayer.Color = Local.SpecularLighting.rgb;
+            Values.DynamicLightSpecularLayer.bEnabled = true;
+        #endif
+    #endif
+    PrBlend(Color, Values);
+}
+#endif

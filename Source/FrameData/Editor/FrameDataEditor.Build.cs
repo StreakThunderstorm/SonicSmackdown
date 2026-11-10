@@ -27,7 +27,7 @@ public class FrameDataEditor : ModuleRules
 				"CoreUObject",
                 "Engine",
                 "AnimGraph",
-                "OriginOfStormsMaster",
+                "SonicSmackdown",
                 "MoveNetworkRuntime"
 				// ... add other public dependencies that you statically link with here ...
 			}
@@ -37,6 +37,9 @@ public class FrameDataEditor : ModuleRules
 			new string[]
 			{
                 "AssetTools",
+                "BlueprintGraph",
+                "Json",
+                "UMG",
                 "GraphEditor",
                 "Slate",
                 "SlateCore",
@@ -45,6 +48,8 @@ public class FrameDataEditor : ModuleRules
                 "EditorStyle",
                 "Kismet",
                 "KismetWidgets",
+                "EditorWidgets",
+                "ClassViewer",
                 "ApplicationCore",
                 "FrameDataRuntime",
                 "UnrealEd",

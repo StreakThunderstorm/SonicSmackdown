@@ -7,6 +7,8 @@
 #include "HAL/FileManager.h"
 #include "Interfaces/IPluginManager.h"
 #include "MaterialShaderType.h"
+#include "Misc/DelayedAutoRegister.h"
+#include "ShaderParameterMacros.h"
 #include "Runtime/Launch/Resources/Version.h"
 
 namespace Internal
@@ -14,7 +16,7 @@ namespace Internal
 class FCustomShaderType
 {
 public:
-	void** vtable;
+	void** vtable; // FShaderType has a virtual destructor.
 	FShaderType::EShaderTypeForDynamicCast ShaderTypeForDynamicCast;
 	const FTypeLayoutDesc* TypeLayout;
 	const TCHAR* Name;
@@ -22,24 +24,13 @@ public:
 	FHashedName HashedName;
 	FHashedName HashedSourceFilename;
 	const TCHAR* SourceFilename;
-	const TCHAR* FunctionName;
-	uint32 Frequency;
-	uint32 TypeSize;
-	int32 TotalPermutationCount;
-
-	FShaderType::ConstructSerializedType ConstructSerializedRef;
-	FShaderType::ConstructCompiledType ConstructCompiledRef;
-	FShaderType::ModifyCompilationEnvironmentType ModifyCompilationEnvironmentRef;
-	FShaderType::ShouldCompilePermutationType ShouldCompilePermutationRef;
-	FShaderType::ValidateCompiledResultType ValidateCompiledResultRef;
-	const FShaderParametersMetadata* const RootParametersMetadata;
 };
 
 void CheckCustom(FShaderType* Original, FCustomShaderType* Custom)
 {
-	if (&Original->GetHashedShaderFilename() != &Custom->HashedSourceFilename)
+	if (&Original->GetHashedShaderFilename() != &Custom->HashedSourceFilename || Original->GetShaderFilename() != Custom->SourceFilename)
 	{
-		UE_LOG(LogPrExtendedShadingPro, Fatal, TEXT("Plugin PrExtendedShadingPro not allowed!"));
+		UE_LOG(LogPrExtendedShadingPro, Fatal, TEXT("PrExtendedShadingPro shader layout does not match this engine build; refusing to overwrite shader filenames."));
 	}
 }
 } // namespace Internal
@@ -48,10 +39,16 @@ FString FPrExtendedShadingProModule::ShaderVersion = FString::Printf(TEXT("%d.%d
 
 void FPrExtendedShadingProModule::StartupModule()
 {
+#if WITH_EDITOR
+	FDelayedAutoRegisterHelper(EDelayedRegisterRunPhase::ShaderTypesReady, &FPrExtendedShadingProModule::InstallShaderOverrides);
+#endif
+}
+
+void FPrExtendedShadingProModule::InstallShaderOverrides()
+{
+#if WITH_EDITOR
 	if (!FPlatformProperties::RequiresCookedData())
 	{
-
-
 		const auto PluginName = TEXT("PrExtendedShadingPro");
 		const auto PluginDirectory = IPluginManager::Get().FindPlugin(PluginName)->GetBaseDir();
 		const auto PluginShaderDirectory = FPaths::Combine(PluginDirectory, TEXT("Shaders"));
@@ -112,6 +109,18 @@ void FPrExtendedShadingProModule::StartupModule()
 		{
 			AddShaderSourceDirectoryMapping(PluginVirtualShaderDirectory, PluginShaderDirectory);
 
+			// ShaderTypesReady runs after lazy registration and before global or material shader caching.
+#if ENGINE_MAJOR_VERSION > 5 || ENGINE_MINOR_VERSION >= 8
+			const bool bShaderTypesReady = FShaderTypeRegistration::AreShaderTypesInitialized();
+#else
+			const bool bShaderTypesReady = FShaderTypeRegistration::GetInstances().IsEmpty();
+#endif
+			if (!FShaderParametersMetadataRegistration::IsReadyForRegistration() || !bShaderTypesReady)
+			{
+				UE_LOG(LogPrExtendedShadingPro, Error, TEXT("Shader registration is not ready; refusing to replace shader types."));
+				return;
+			}
+			int32 ReplacedShaderTypes = 0;
 			for (auto ShaderTypeLink = FShaderType::GetTypeList(); ShaderTypeLink; ShaderTypeLink = ShaderTypeLink->Next())
 			{
 				auto& ShaderTypeNode = *ShaderTypeLink;
@@ -119,20 +128,24 @@ void FPrExtendedShadingProModule::StartupModule()
 
 				if (auto NewFilenamePtr = ReplaceShaderMap.Find(ShaderType->GetShaderFilename()))
 				{
+					// Only the verified filename prefix is accessed; UE5 added fields after this prefix.
 					auto CustomShaderType = reinterpret_cast<Internal::FCustomShaderType*>(ShaderType);
 
 					Internal::CheckCustom(ShaderType, CustomShaderType);
 
 					CustomShaderType->HashedSourceFilename = **NewFilenamePtr;
 					CustomShaderType->SourceFilename = **NewFilenamePtr;
+					++ReplacedShaderTypes;
 				}
 			}
+			UE_LOG(LogPrExtendedShadingPro, Display, TEXT("Loaded shader implementation %s; replaced %d shader types."), *ShaderVersion, ReplacedShaderTypes);
 		}
 		else
 		{
 			UE_LOG(LogPrExtendedShadingPro, Error, TEXT("Unsupported version of engine: %d.%d.%d"), ENGINE_MAJOR_VERSION, ENGINE_MINOR_VERSION, ENGINE_PATCH_VERSION);
 		}
 	}
+#endif // WITH_EDITOR
 }
 
 void FPrExtendedShadingProModule::ShutdownModule()

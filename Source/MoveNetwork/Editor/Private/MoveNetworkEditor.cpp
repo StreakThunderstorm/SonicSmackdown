@@ -1,4 +1,5 @@
 #include "MNAssetTypeActions.h"
+#include "AssetToolsModule.h"
 #include "MoveNetworkEditorPCH.h"
 #include "EdGraphUtilities.h"
 #include "MoveNetworkAssetEditor/MNNode_EdNode.h"

@@ -13,7 +13,7 @@
 #include "IDetailsView.h"
 #include "IStructureDetailsView.h"
 #include "PropertyEditorModule.h"
-#include "SButton.h"
+#include "Widgets/Input/SButton.h"
 
 #define LOCTEXT_NAMESPACE "FDTriggerPanel"
 
@@ -170,7 +170,7 @@ FReply SFDButton::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEve
 	FReply Reply = FReply::Unhandled();
 	const EButtonClickMethod::Type InputClickMethod = GetClickMethodFromInputType(MouseEvent);
 	const bool bMustBePressed = InputClickMethod == EButtonClickMethod::DownAndUp || InputClickMethod == EButtonClickMethod::PreciseClick;
-	const bool bMeetsPressedRequirements = (!bMustBePressed || (bIsPressed && bMustBePressed));
+	const bool bMeetsPressedRequirements = (!bMustBePressed || (IsPressed() && bMustBePressed));
 
 	if (bMeetsPressedRequirements && ((MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton || MouseEvent.IsTouchEvent())))
 	{
@@ -417,7 +417,7 @@ void SFDTriggerPanel::MakeNewTriggerPicker(FMenuBuilder& MenuBuilder)
 	InitOptions.bEnableClassDynamicLoading = true;
 	InitOptions.bExpandRootNodes = true;
 	InitOptions.NameTypeToDisplay = EClassViewerNameTypeToDisplay::DisplayName;
-	InitOptions.ClassFilter = MakeShared<FFDTriggerClassFilter>();
+	InitOptions.ClassFilters.Add(MakeShared<FFDTriggerClassFilter>());
 	InitOptions.bShowBackgroundBorder = false;
 
 	FClassViewerModule& ClassViewerModule = FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer");

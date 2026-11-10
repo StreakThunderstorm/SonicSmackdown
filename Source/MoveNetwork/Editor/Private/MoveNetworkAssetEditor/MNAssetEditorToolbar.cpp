@@ -1,4 +1,5 @@
 #include "MNAssetEditorToolbar.h"
+#include "Styling/AppStyle.h"
 #include "MNAssetEditor.h"
 #include "MNEditorCommands.h"
 #include "MNEditorStyle.h"
@@ -26,7 +27,7 @@ void FMNAssetEditorToolbar::FillMoveNetworkToolbar(FToolBarBuilder& ToolbarBuild
 			NAME_None,
 			LOCTEXT("GraphSettings_Label", "Graph Settings"),
 			LOCTEXT("GraphSettings_ToolTip", "Show the Graph Settings"),
-			FSlateIcon(FEditorStyle::GetStyleSetName(), "LevelEditor.GameSettings"));
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.GameSettings"));
 	}
 	ToolbarBuilder.EndSection();
 

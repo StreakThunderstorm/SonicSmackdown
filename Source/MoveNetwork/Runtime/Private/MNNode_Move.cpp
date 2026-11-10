@@ -2,38 +2,38 @@
 
 #include "MNNode_Move.h"
 
-EOOSInputDir UMNNode_Move::GetInputDir() const
+ESSDInputDir UMNNode_Move::GetInputDir() const
 {
-	EOOSInputDir Result = EOOSInputDir::OOSID_None;
+	ESSDInputDir Result = ESSDInputDir::SSDID_None;
 	switch (Move.Direction)
 	{
-	case EOOSMoveDir::OOSMD_Forward:
-		Result = EOOSInputDir::OOSID_Right;
+	case ESSDMoveDir::SSDMD_Forward:
+		Result = ESSDInputDir::SSDID_Right;
 		break;
-	case EOOSMoveDir::OOSMD_UpForward:
-		Result = EOOSInputDir::OOSID_UpRight;
+	case ESSDMoveDir::SSDMD_UpForward:
+		Result = ESSDInputDir::SSDID_UpRight;
 		break;
-	case EOOSMoveDir::OOSMD_Up:
-		Result = EOOSInputDir::OOSID_Up;
+	case ESSDMoveDir::SSDMD_Up:
+		Result = ESSDInputDir::SSDID_Up;
 		break;
-	case EOOSMoveDir::OOSMD_UpBack:
-		Result = EOOSInputDir::OOSID_UpLeft;
+	case ESSDMoveDir::SSDMD_UpBack:
+		Result = ESSDInputDir::SSDID_UpLeft;
 		break;
-	case EOOSMoveDir::OOSMD_Back:
-		Result = EOOSInputDir::OOSID_Left;
+	case ESSDMoveDir::SSDMD_Back:
+		Result = ESSDInputDir::SSDID_Left;
 		break;
-	case EOOSMoveDir::OOSMD_DownBack:
-		Result = EOOSInputDir::OOSID_DownLeft;
+	case ESSDMoveDir::SSDMD_DownBack:
+		Result = ESSDInputDir::SSDID_DownLeft;
 		break;
-	case EOOSMoveDir::OOSMD_Down:
-		Result = EOOSInputDir::OOSID_Down;
+	case ESSDMoveDir::SSDMD_Down:
+		Result = ESSDInputDir::SSDID_Down;
 		break;
-	case EOOSMoveDir::OOSMD_DownForward:
-		Result = EOOSInputDir::OOSID_DownRight;
+	case ESSDMoveDir::SSDMD_DownForward:
+		Result = ESSDInputDir::SSDID_DownRight;
 		break;
-	case EOOSMoveDir::OOSMD_None:
+	case ESSDMoveDir::SSDMD_None:
 	default:
-		Result = EOOSInputDir::OOSID_None;
+		Result = ESSDInputDir::SSDID_None;
 		break;
 	}
 

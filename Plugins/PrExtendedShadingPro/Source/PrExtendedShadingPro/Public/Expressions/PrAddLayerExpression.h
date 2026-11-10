@@ -121,7 +121,6 @@ public:
 	bool CompileInput(FMaterialCompiler* Compiler, int32 LayerIndex, UMaterialExpressionCustom* CustomExpression, FExpressionInput* ExpressionInput, FPrExpressionInputDescription* ExpressionInputDescription, const FString& StructParamName, FString& OutStructParamCode, FString& OutFunctionParamCode, TArray<int32>& OutCompiledInputs) const;
 
 	virtual FText GetKeywords() const override;
-	virtual const TArray<FExpressionInput*> GetInputs() override;
 	virtual FExpressionInput* GetInput(int32 InputIndex) override;
 	virtual FName GetInputName(int32 InputIndex) const override;
 	virtual bool IsInputConnectionRequired(int32 InputIndex) const override;

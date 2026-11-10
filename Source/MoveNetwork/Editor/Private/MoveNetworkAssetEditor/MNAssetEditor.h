@@ -1,6 +1,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Toolkits/AssetEditorToolkit.h"
+#include "Misc/NotifyHook.h"
+#include "UObject/GCObject.h"
+#include "UObject/ObjectSaveContext.h"
+#include "GraphEditor.h"
 #include "MNEditorSettings.h"
 #include "MoveNetwork.h"
 
@@ -38,6 +43,7 @@ public:
 
 	// FSerializableObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override { return TEXT("FMNAssetEditor"); }
 	// End of FSerializableObject interface
 
 	UMNEditorSettings* GetSettings() const;
@@ -96,7 +102,7 @@ private:
 
 	void OnFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent);
 
-	void OnPackageSaved(const FString& PackageFileName, UObject* Outer);
+	void OnPackageSaved(const FString& PackageFileName, UPackage* Package, FObjectPostSaveContext SaveContext);
 
 private:
 	UMNEditorSettings* MoveNetworkEditorSettings;

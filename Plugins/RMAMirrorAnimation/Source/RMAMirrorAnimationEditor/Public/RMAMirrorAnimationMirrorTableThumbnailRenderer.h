@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2025 Rafael Marques Almeida. All Rights Reserved.
 #pragma once
 #include "ThumbnailRendering/DefaultSizedThumbnailRenderer.h"
 #include "RMAMirrorAnimationMirrorTableThumbnailRenderer.generated.h"
@@ -9,7 +9,7 @@ class RMAMIRRORANIMATIONEDITOR_API URMAMirrorAnimationMirrorTableThumbnailRender
 {
 
 	GENERATED_BODY()
-	
+
 	virtual void Draw(UObject* Object, int32 X, int32 Y, uint32 Width, uint32 Height, FRenderTarget* Viewport, FCanvas* Canvas, bool bAdditionalViewFamily) override;
 
 };

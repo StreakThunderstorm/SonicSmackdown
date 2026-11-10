@@ -1,6 +1,7 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2025 Rafael Marques Almeida. All Rights Reserved.
 #include "RMAMirrorAnimationAnimSequenceDetailsInterface.h"
 #include "RMAMirrorAnimationEditor.h"
+#include "Components/PropertyViewBase.h"
 
 void URMAMirrorAnimationAnimSequenceDetailsInterface::SetAnimSequence(UAnimSequence* Value)
 {
@@ -22,13 +23,14 @@ URMAMirrorAnimationAnimSequenceCustomData* URMAMirrorAnimationAnimSequenceDetail
 
 			CustomData = NewObject<URMAMirrorAnimationAnimSequenceCustomData>();
 			CustomData->OnPropertyChangedDelegate.AddLambda([&](const FPropertyChangedEvent& Event, const FString& Name)
-				{
+			{
 
-					GetAnimSequence()->AddAssetUserData(CustomData);
-					GetAnimSequence()->MarkPackageDirty();
-					CustomData->OnPropertyChangedDelegate.RemoveAll(this);
+				CustomData->OnPropertyChangedDelegate.RemoveAll(this);
+				CustomData = DuplicateObject(CustomData, GetAnimSequence());
+				GetAnimSequence()->AddAssetUserData(CustomData);
+				GetAnimSequence()->MarkPackageDirty();
 
-				});
+			});
 
 		}
 
@@ -69,4 +71,12 @@ void URMAMirrorAnimationAnimSequenceDetailsInterface::ResetAnimation()
 
 	}
 
+}
+
+void URMAMirrorAnimationAnimSequenceDetailsInterface::SetViewObject(UPropertyViewBase* ViewBase, UObject* Object)
+{
+	if (ViewBase)
+	{
+		ViewBase->SetObject(Object);
+	}
 }

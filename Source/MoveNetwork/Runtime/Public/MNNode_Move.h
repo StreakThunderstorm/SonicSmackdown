@@ -17,7 +17,7 @@ class MOVENETWORKRUNTIME_API UMNNode_Move : public UMNNode
 public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MoveProperties")
-	FOOSMove Move;
+	FSSDMove Move;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "MoveListProperties")
 	FText MoveName;
@@ -28,7 +28,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "MoveListProperties")
 	bool bDisplayInMoveList = true;
 
-	EOOSInputDir GetInputDir() const;
+	ESSDInputDir GetInputDir() const;
 
 	static bool Compare(const UMNNode* A, const UMNNode* B)
 	{
@@ -51,7 +51,7 @@ public:
 			return MoveNodeA->Move.DirPattern < MoveNodeB->Move.DirPattern;
 
 		// Use a different sorting for moves without a DirPattern
-		if (MoveNodeA->Move.DirPattern == EOOSDirPattern::OOSDP_None)
+		if (MoveNodeA->Move.DirPattern == ESSDDirPattern::SSDDP_None)
 		{
 			// Non-air before air
 			if (MoveNodeA->Move.bAir != MoveNodeB->Move.bAir)

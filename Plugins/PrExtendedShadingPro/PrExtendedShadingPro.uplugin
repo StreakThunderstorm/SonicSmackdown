@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 2,
-	"VersionName": "1.5.59-174b9a5",
+	"Version": 3,
+	"VersionName": "1.5.59-ue5.5.4-ue5.8.3-local",
 	"FriendlyName": "PrExtendedShadingPro",
 	"Description": "The plugin extends the shading capabilities and does so without additional overhead. Plugin tools are easy to use and designed to create various stylized shadings such as Tool Shading, Flat Color Shading, Unlit with Shadows.",
 	"Category": "Render",
@@ -10,23 +10,18 @@
 	"DocsURL": "",
 	"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/content/951add01b5ad41e89f89066a10d0242a",
 	"SupportURL": "https://prudnikov.dev/extended-shading-pro/",
-	"EngineVersion": "4.27.0",
 	"CanContainContent": true,
 	"Installed": true,
+	"EnabledByDefault": true,
 	"Modules": [
 		{
 			"Name": "PrExtendedShadingPro",
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit",
-			"WhitelistPlatforms": [
-				"Win32",
+			"PlatformAllowList": [
 				"Win64",
 				"Mac",
-				"Linux",
-				"IOS",
-				"Android",
-				"PS4",
-				"XboxOne"
+				"Linux"
 			]
 		}
 	]

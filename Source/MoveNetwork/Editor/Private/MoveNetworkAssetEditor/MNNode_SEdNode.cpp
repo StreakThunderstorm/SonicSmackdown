@@ -1,8 +1,9 @@
 #include "MNNode_SEdNode.h"
+#include "Styling/AppStyle.h"
 #include "../MoveNetworkEditorPCH.h"
 #include "MNColors.h"
 #include "SLevelOfDetailBranchNode.h"
-#include "SInlineEditableTextBlock.h"
+#include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "SCommentBubble.h"
 #include "SlateOptMacros.h"
 #include "SGraphPin.h"
@@ -52,7 +53,7 @@ protected:
 
 	const FSlateBrush* GetPinBorder() const
 	{
-		return FEditorStyle::GetBrush(TEXT("Graph.StateNode.Body"));
+		return FAppStyle::GetBrush(TEXT("Graph.StateNode.Body"));
 	}
 };
 
@@ -87,7 +88,7 @@ void MNNode_SEDNode::UpdateGraphNode()
 		.VAlign(VAlign_Center)
 		[
 			SNew(SBorder)
-			.BorderImage(FEditorStyle::GetBrush("Graph.StateNode.Body"))
+			.BorderImage(FAppStyle::GetBrush("Graph.StateNode.Body"))
 			.Padding(0.0f)
 			.BorderBackgroundColor(this, &MNNode_SEDNode::GetBorderBackgroundColor)
 			[
@@ -120,7 +121,7 @@ void MNNode_SEDNode::UpdateGraphNode()
 						.AutoHeight()
 						[
 							SAssignNew(NodeBody, SBorder)
-							.BorderImage(FEditorStyle::GetBrush("BTEditor.Graph.BTNode.Body"))
+							.BorderImage(FAppStyle::GetBrush("BTEditor.Graph.BTNode.Body"))
 							.BorderBackgroundColor(this, &MNNode_SEDNode::GetBackgroundColor)
 							.HAlign(HAlign_Fill)
 							.VAlign(VAlign_Center)
@@ -157,7 +158,7 @@ void MNNode_SEDNode::UpdateGraphNode()
 												.AutoHeight()
 												[
 													SAssignNew(InlineEditableText, SInlineEditableTextBlock)
-													.Style(FEditorStyle::Get(), "Graph.StateNode.NodeTitleInlineEditableText")
+													.Style(FAppStyle::Get(), "Graph.StateNode.NodeTitleInlineEditableText")
 													.Text(NodeTitle.Get(), &SNodeTitle::GetHeadTitle)
 													.OnVerifyTextChanged(this, &MNNode_SEDNode::OnVerifyNameTextChanged)
 													.OnTextCommitted(this, &MNNode_SEDNode::OnNameTextCommited)
@@ -327,7 +328,7 @@ EVisibility MNNode_SEDNode::GetDragOverMarkerVisibility() const
 
 const FSlateBrush* MNNode_SEDNode::GetNameIcon() const
 {
-	return FEditorStyle::GetBrush(TEXT("BTEditor.Graph.BTNode.Icon"));
+	return FAppStyle::GetBrush(TEXT("BTEditor.Graph.BTNode.Icon"));
 }
 
 #undef LOCTEXT_NAMESPACE

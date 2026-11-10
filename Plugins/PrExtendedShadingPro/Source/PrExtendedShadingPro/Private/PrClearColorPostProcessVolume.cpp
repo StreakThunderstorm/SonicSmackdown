@@ -12,7 +12,7 @@ APrClearColorPostProcessVolume::APrClearColorPostProcessVolume()
 	Settings.bOverride_VignetteIntensity = true;
 	Settings.VignetteIntensity = 0.f;
 
-#if ENGINE_MINOR_VERSION >= 26
+#if ENGINE_MAJOR_VERSION > 4 || ENGINE_MINOR_VERSION >= 26
 	Settings.bOverride_ToneCurveAmount = true;
 	Settings.ToneCurveAmount = 0.f;
 #endif

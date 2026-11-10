@@ -1,0 +1,39 @@
+#ifndef PAWN_RENDER_LAYERS_USH
+#define PAWN_RENDER_LAYERS_USH
+
+// Settings: marker, flattening fraction, layer, near camera distance (negative disables layering).
+// Projection: signed reference distance (negative enables the particle bounds guard), band far depth, width, far distance.
+float4 ApplyPawnRenderLayer(float4 Clip, float4 Settings, float4 Projection, float3 DepthCoefficients)
+{
+    if (Settings.x != 7319.0 || Clip.w <= 0.0 || DepthCoefficients.z != 0.0)
+        return Clip;
+
+    float ReferenceDistance = max(abs(Projection.x), 1.0);
+    float Alpha = saturate(Settings.y);
+    float NearDistance = max(abs(Settings.w), 1.0);
+    float FarDistance = max(Projection.w, NearDistance + 1.0);
+    float NearW = lerp(NearDistance, ReferenceDistance, Alpha);
+    float FarW = lerp(FarDistance, ReferenceDistance, Alpha);
+    float NearDepth = DepthCoefficients.x + DepthCoefficients.y / NearDistance;
+    float FarDepth = DepthCoefficients.x + DepthCoefficients.y / FarDistance;
+    if (Settings.w > 0.0)
+    {
+        NearDepth = Projection.y + Projection.z;
+        FarDepth = Projection.y;
+    }
+
+    // Both clip Z and W are affine in camera depth. This preserves triangle planes and depth comparisons
+    // throughout the perspective-to-orthographic transition, rather than compressing vertices nonlinearly.
+    float DepthFraction = (Clip.w - NearDistance) / (FarDistance - NearDistance);
+    Clip.z = lerp(NearDepth * NearW, FarDepth * FarW, DepthFraction);
+    Clip.w = lerp(Clip.w, ReferenceDistance, Alpha);
+#if MATERIALBLENDING_TRANSLUCENT || MATERIALBLENDING_ADDITIVE || MATERIALBLENDING_ALPHACOMPOSITE || MATERIALBLENDING_ALPHAHOLDOUT
+    // Particle bounds may omit renderer camera offsets and material deformation. Transparent effects must not
+    // escape their assigned group. Keep the affine mapping within bounds and constrain only overflowing vertices.
+    if (Projection.x < 0.0 && Settings.w > 0.0 && Clip.w > 0.0)
+        Clip.z = clamp(Clip.z, Projection.y * Clip.w, (Projection.y + Projection.z) * Clip.w);
+#endif
+    return Clip;
+}
+
+#endif

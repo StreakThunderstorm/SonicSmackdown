@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "EdGraph/EdGraphSchema.h"
 #include "MoveNetwork.h"
 #include "MNNode.h"
 #include "MNEdge.h"

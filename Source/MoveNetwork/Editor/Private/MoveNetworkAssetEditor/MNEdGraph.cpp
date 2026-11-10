@@ -51,10 +51,10 @@ void UMNEdGraph::RebuildMoveNetwork()
 					}
 					else if (UMNEdge_EdNode* EdNode_Edge = Cast<UMNEdge_EdNode>(Pin->LinkedTo[LinkToIdx]->GetOwningNode()))
 					{
-						UMNNode_EdNode* EdNode_Child = EdNode_Edge->GetEndNode();;
-						if (EdNode_Child != nullptr)
+						UMNNode_EdNode* EdNode_End = EdNode_Edge->GetEndNode();
+						if (EdNode_End != nullptr)
 						{
-							ChildNode = EdNode_Child->MoveNetworkNode;
+							ChildNode = EdNode_End->MoveNetworkNode;
 						}
 					}
 

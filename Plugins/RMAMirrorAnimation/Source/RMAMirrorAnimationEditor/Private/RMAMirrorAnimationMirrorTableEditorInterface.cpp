@@ -1,5 +1,6 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2025 Rafael Marques Almeida. All Rights Reserved.
 #include "RMAMirrorAnimationMirrorTableEditorInterface.h"
+#include "Components/PropertyViewBase.h"
 
 void URMAMirrorAnimationMirrorTableEditorInterface::NativeConstruct()
 {
@@ -20,7 +21,7 @@ void URMAMirrorAnimationMirrorTableEditorInterface::NativeConstruct()
 	}
 
 	Super::NativeConstruct();
-	
+
 }
 
 void URMAMirrorAnimationMirrorTableEditorInterface::NativeDestruct()
@@ -40,4 +41,12 @@ void URMAMirrorAnimationMirrorTableEditorInterface::SetMirrorTable(URMAMirrorAni
 
 	MirrorTable = Value;
 
+}
+
+void URMAMirrorAnimationMirrorTableEditorInterface::SetViewObject(UPropertyViewBase* ViewBase, UObject* Object)
+{
+	if (ViewBase)
+	{
+		ViewBase->SetObject(Object);
+	}
 }

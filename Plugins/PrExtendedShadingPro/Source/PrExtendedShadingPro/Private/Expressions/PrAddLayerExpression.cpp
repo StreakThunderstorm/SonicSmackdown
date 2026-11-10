@@ -17,6 +17,7 @@ void PrepareCode(FString& Code)
 {
 	if (Code.Len() > 0)
 	{
+		Code.ReplaceInline(TEXT("\r\n"), TEXT("\n"), ESearchCase::CaseSensitive);
 		Code.ReplaceInline(TEXT("\n"), TEXT("\r\n"), ESearchCase::CaseSensitive);
 	}
 }
@@ -206,18 +207,6 @@ FText UPrAddLayerExpression::GetKeywords() const
 	return FText::FromString(TEXT("Layer"));
 }
 
-const TArray<FExpressionInput*> UPrAddLayerExpression::GetInputs()
-{
-	TArray<FExpressionInput*> Result;
-
-	for (auto DescriptionPtr : GetInputsDescriptions())
-	{
-		Result.Add(DescriptionPtr->ExpressionInputPtr);
-	}
-
-	return Result;
-}
-
 FExpressionInput* UPrAddLayerExpression::GetInput(int32 InputIndex)
 {
 	auto Inputs = GetInputsDescriptions();
@@ -364,6 +353,9 @@ bool UPrAddLayerExpression::CompileInput(FMaterialCompiler* Compiler, int32 Laye
 
 int32 UPrAddLayerExpression::Compile(FMaterialCompiler* Compiler, int32 OutputIndex)
 {
+	if (Compiler->GetFeatureLevel() < ERHIFeatureLevel::SM5)
+		return Compiler->Errorf(TEXT("PrExtendedShadingPro currently supports desktop forward shading only."));
+
 	for (auto DescriptionPtr : GetInputsDescriptions())
 	{
 		if (DescriptionPtr->bRequired && !DescriptionPtr->ExpressionInputPtr->GetTracedInput().Expression)
@@ -432,7 +424,10 @@ int32 UPrAddLayerExpression::Compile(FMaterialCompiler* Compiler, int32 OutputIn
 		}
 	}
 
-	CustomExpression->Code += FString::Printf(TEXT("\treturn 1.0;"));
+	CustomExpression->Inputs.Add({TEXT("PrExec"), {}});
+	CompiledInputs.Add(ExecIndex);
+	CustomExpression->Code += TEXT("\treturn PrExec;");
+	CustomExpression->OutputType = CMOT_Float3;
 	StructParamCode += FString::Printf(TEXT("};\n"));
 	StructParamCode += FString::Printf(TEXT("static F%s %s;\n"), *BlendCodeStructParamName, *BlendCodeStructParamName);
 	PrepareCode(StructParamCode);
@@ -509,6 +504,7 @@ int32 UPrAddLayerExpression::Compile(FMaterialCompiler* Compiler, int32 OutputIn
 	WBlendCode += TEXT("\t}");
 
 	FString DefineCode = TEXT("1\n");
+	DefineCode += FString::Printf(TEXT("#define PR_SHADER_USES_%s 1\n"), *LayerTypeName);
 
 	DefineCode += TEXT("#ifndef PR_SHADER\n");
 	DefineCode += TEXT("#define PR_SHADER 1\n");
@@ -579,14 +575,13 @@ int32 UPrAddLayerExpression::Compile(FMaterialCompiler* Compiler, int32 OutputIn
 
 	CustomExpression->AdditionalDefines.Add({FString::Printf(TEXT("PR_SHADER_LAYER_%d"), LayerIndex), DefineCode});
 
-#if ENGINE_MINOR_VERSION >= 26
-	Compiler->CustomExpression(CustomExpression, OutputIndex, CompiledInputs);
+#if ENGINE_MAJOR_VERSION > 4 || ENGINE_MINOR_VERSION >= 26
+	return Compiler->CustomExpression(CustomExpression, OutputIndex, CompiledInputs);
 #else
-	Compiler->CustomExpression(CustomExpression, CompiledInputs);
+	return Compiler->CustomExpression(CustomExpression, CompiledInputs);
 #endif
-
-	return ExecIndex;
 }
+
 #endif // WITH_EDITOR
 
 #undef LOCTEXT_NAMESPACE

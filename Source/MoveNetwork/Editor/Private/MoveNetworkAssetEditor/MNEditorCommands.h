@@ -1,13 +1,16 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Styling/AppStyle.h"
+#include "Framework/Commands/Commands.h"
 
 class FMNEditorCommands : public TCommands<FMNEditorCommands>
 {
 public:
 	/** Constructor */
 	FMNEditorCommands()
-		: TCommands<FMNEditorCommands>("MoveNetworkEditor", NSLOCTEXT("Contexts", "MoveNetworkEditor", "Move Network Editor"), NAME_None, FEditorStyle::GetStyleSetName())
+		: TCommands<FMNEditorCommands>("MoveNetworkEditor", NSLOCTEXT("Contexts", "MoveNetworkEditor", "Move Network Editor"),
+			NAME_None, FAppStyle::GetAppStyleSetName())
 	{
 	}
 	

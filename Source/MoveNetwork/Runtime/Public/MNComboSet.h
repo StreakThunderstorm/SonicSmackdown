@@ -13,19 +13,19 @@ class UMNNode_Move;
 
 // Data structure for a set of move cancels.
 USTRUCT(BlueprintType)
-struct FOOSMoveCancels
+struct FSSDMoveCancels
 {
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		TArray<UMNNode_Move*> Nodes;
 
-	FOOSMoveCancels()
+	FSSDMoveCancels()
 	{
 		Nodes = TArray<UMNNode_Move*>();
 	};
 
-	FOOSMoveCancels(TArray<UMNNode_Move*> ComboNodes)
+	FSSDMoveCancels(TArray<UMNNode_Move*> ComboNodes)
 	{
 		Nodes = ComboNodes;
 	};
@@ -49,7 +49,7 @@ public:
 	TArray<UMNNode_Move*> ComboNodes(UMNNode* Node);
 
 private:
-	TMap<UMNNode*, FOOSMoveCancels> MoveCancels;
+	TMap<UMNNode*, FSSDMoveCancels> MoveCancels;
 
 	void AddChildren(
 		TArray<UMNNode*> ChildrenNodes,

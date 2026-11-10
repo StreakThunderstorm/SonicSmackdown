@@ -1,6 +1,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Misc/NotifyHook.h"
+#include "UObject/GCObject.h"
 #include "FrameData.h"
 #include "IFrameDataEditor.h"
 #include "Editor/EditorWidgets/Public/ITransportControl.h"
@@ -34,6 +36,7 @@ public:
 
 	//~ Begin FGCObject Interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override { return TEXT("FFDAssetEditor"); }
 	//~ End FGCObject Interface
 
 

@@ -27,7 +27,7 @@ void UFrameData::RefreshFrameData()
 		// Save old framedata array and restore it later in case user wants to revert the animation asset.
 		TArray<FFDFrame> OldFD = FrameData;
 
-		int32 NumFrames = AnimSequence->GetNumberOfFrames();
+		int32 NumFrames = AnimSequence->GetNumberOfSampledKeys();
 		FrameData.Init(FFDFrame(), NumFrames);
 
 		// Restore old array into fresh one (whole if smaller, clamp to new size if bigger).

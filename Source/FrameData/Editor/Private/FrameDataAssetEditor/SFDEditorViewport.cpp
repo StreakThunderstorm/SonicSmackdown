@@ -5,7 +5,7 @@
 #include "FrameData.h"
 #include "Engine/TextureCube.h"
 #include "AnimPreviewInstance.h"
-#include "OOSPawn.h"
+#include "SSDPawn.h"
 #include "FDAnimInstance.h"
 #include "Editor/UnrealEd/Public/ComponentAssetBroker.h"
 
@@ -27,7 +27,7 @@ void SFDEditorViewport::Tick(const FGeometry& AllottedGeometry, const double InC
 			World->Tick(ELevelTick::LEVELTICK_ViewportsOnly, InDeltaTime);
 		}
 
-		if (bIsPlaying)
+		if (bIsPlaying && FrameDataAsset && AnimInstance)
 		{
 			TimeElapsed += InDeltaTime;
 			uint32 FramesElapsed = FMath::FloorToInt(TimeElapsed / (1.f / 60));
@@ -154,7 +154,7 @@ void SFDEditorViewport::SetPreviewAnimation(UAnimationAsset* InAnimation)
 				float HalfHeight = MeshExtent.Z / 2.f;
 				float Radius = FMath::Max(MeshExtent.X, MeshExtent.Y);
 
-				PreviewPawn = World->SpawnActor<AOOSPawn>(FVector(0.f,0.f,HalfHeight), FRotator::ZeroRotator);
+				PreviewPawn = World->SpawnActor<ASSDPawn>(FVector(0.f,0.f,HalfHeight), FRotator::ZeroRotator);
 				PreviewPawn->Capsule->SetCapsuleHalfHeight(HalfHeight);
 				PreviewPawn->Capsule->SetVisibility(true); // REMOVE LATER
 
@@ -196,6 +196,9 @@ void SFDEditorViewport::SetPreviewAnimation(UAnimationAsset* InAnimation)
 
 void SFDEditorViewport::TogglePlay()
 {
+	if (!FrameDataAsset || !AnimInstance || FrameDataAsset->FrameData.Num() < 2 || FrameDataAsset->GetAnimationLength() <= 0.f)
+		return;
+
 	bIsPlaying = !bIsPlaying;
 }
 
@@ -206,6 +209,9 @@ void SFDEditorViewport::Stop()
 
 void SFDEditorViewport::GoToFrame(uint32 Frame)
 {
+	if (!FrameDataAsset || !AnimInstance || FrameDataAsset->FrameData.Num() < 2)
+		return;
+
 	float Length = FrameDataAsset->GetAnimationLength();
 	uint32 NumFrames = FrameDataAsset->FrameData.Num() - 1;
 
@@ -214,7 +220,13 @@ void SFDEditorViewport::GoToFrame(uint32 Frame)
 
 void SFDEditorViewport::GoToFrame(float InPosition)
 {
+	if (!FrameDataAsset || !AnimInstance || FrameDataAsset->FrameData.Num() < 2)
+		return;
+
 	float Length = FrameDataAsset->GetAnimationLength();
+	if (Length <= 0.f)
+		return;
+
 	uint32 Frame = uint8((InPosition / Length) * (FrameDataAsset->FrameData.Num() - 1));
 	GoToFrame(Frame);
 }

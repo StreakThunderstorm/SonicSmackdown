@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2025 Rafael Marques Almeida. All Rights Reserved.
 #pragma once
 #include "Animation/AnimNodeBase.h"
 #include "RMAMirrorAnimationMirrorTable.h"
@@ -12,11 +12,11 @@ DECLARE_CYCLE_STAT_EXTERN(TEXT("Mirror Bones"), STAT_MirrorBones, STATGROUP_RMAM
 USTRUCT(BlueprintType)
 struct RMAMIRRORANIMATION_API FRMAMirrorAnimationAnimNodeMirrorAnimation : public FAnimNode_Base
 {
-	
+
 	GENERATED_BODY()
 
 	FRMAMirrorAnimationAnimNodeMirrorAnimation();
-	
+
 public:
 
 	//Pose

@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2025 Rafael Marques Almeida. All Rights Reserved.
 #pragma once
 #include "AssetTypeActions_Base.h"
 #include "RMAMirrorAnimationMirrorTable.h"
@@ -11,7 +11,7 @@ public:
 
 	//Return The Name Of This Type
 	virtual FText GetName() const override
-	{	
+	{
 
 		return FText::FromString(FString("MirrorTable"));
 
@@ -20,7 +20,7 @@ public:
 	//Return The Color Associated With This Type
 	virtual FColor GetTypeColor() const override
 	{
-		
+
 		return FColor::FromHex("454589FF");
 
 	}

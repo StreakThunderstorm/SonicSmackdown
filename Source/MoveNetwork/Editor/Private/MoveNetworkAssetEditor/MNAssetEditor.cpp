@@ -1,4 +1,6 @@
 #include "MNAssetEditor.h"
+#include "Styling/AppStyle.h"
+#include "UObject/ObjectSaveContext.h"
 #include "../MoveNetworkEditorPCH.h"
 #include "MNAssetEditorToolbar.h"
 #include "MNAssetGraphSchema.h"
@@ -6,7 +8,7 @@
 #include "MNEdGraph.h"
 #include "AssetToolsModule.h"
 #include "HAL/PlatformApplicationMisc.h"
-#include "GenericCommands.h"
+#include "Framework/Commands/GenericCommands.h"
 #include "GraphEditorActions.h"
 #include "IDetailsView.h"
 #include "PropertyEditorModule.h"
@@ -45,12 +47,12 @@ FMNAssetEditor::FMNAssetEditor()
 
 	MoveNetworkEditorSettings = NewObject<UMNEditorSettings>(UMNEditorSettings::StaticClass());
 
-	OnPackageSavedDelegateHandle = UPackage::PackageSavedEvent.AddRaw(this, &FMNAssetEditor::OnPackageSaved);
+	OnPackageSavedDelegateHandle = UPackage::PackageSavedWithContextEvent.AddRaw(this, &FMNAssetEditor::OnPackageSaved);
 }
 
 FMNAssetEditor::~FMNAssetEditor()
 {
-	UPackage::PackageSavedEvent.Remove(OnPackageSavedDelegateHandle);
+	UPackage::PackageSavedWithContextEvent.Remove(OnPackageSavedDelegateHandle);
 }
 
 void FMNAssetEditor::InitMoveNetworkAssetEditor(const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, UMoveNetwork* Graph)
@@ -131,17 +133,17 @@ void FMNAssetEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabMan
 	InTabManager->RegisterTabSpawner(FMNAssetEditorTabs::ViewportID, FOnSpawnTab::CreateSP(this, &FMNAssetEditor::SpawnTab_Viewport))
 		.SetDisplayName(LOCTEXT("GraphCanvasTab", "Viewport"))
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FEditorStyle::GetStyleSetName(), "GraphEditor.EventGraph_16x"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "GraphEditor.EventGraph_16x"));
 
 	InTabManager->RegisterTabSpawner(FMNAssetEditorTabs::MoveNetworkPropertyID, FOnSpawnTab::CreateSP(this, &FMNAssetEditor::SpawnTab_Details))
 		.SetDisplayName(LOCTEXT("DetailsTab", "Property"))
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FEditorStyle::GetStyleSetName(), "LevelEditor.Tabs.Details"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 
 	InTabManager->RegisterTabSpawner(FMNAssetEditorTabs::MoveNetworkEditorSettingsID, FOnSpawnTab::CreateSP(this, &FMNAssetEditor::SpawnTab_EditorSettings))
 		.SetDisplayName(LOCTEXT("EditorSettingsTab", "Move Network Editor Setttings"))
 		.SetGroup(WorkspaceMenuCategoryRef)
-		.SetIcon(FSlateIcon(FEditorStyle::GetStyleSetName(), "LevelEditor.Tabs.Details"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 }
 
 void FMNAssetEditor::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
@@ -234,7 +236,7 @@ TSharedRef<SDockTab> FMNAssetEditor::SpawnTab_Details(const FSpawnTabArgs& Args)
 	check(Args.GetTabId() == FMNAssetEditorTabs::MoveNetworkPropertyID);
 
 	return SNew(SDockTab)
-		.Icon(FEditorStyle::GetBrush("LevelEditor.Tabs.Details"))
+		.Icon(FAppStyle::GetBrush("LevelEditor.Tabs.Details"))
 		.Label(LOCTEXT("Details_Title", "Property"))
 		[
 			PropertyWidget.ToSharedRef()
@@ -246,7 +248,7 @@ TSharedRef<SDockTab> FMNAssetEditor::SpawnTab_EditorSettings(const FSpawnTabArgs
 	check(Args.GetTabId() == FMNAssetEditorTabs::MoveNetworkEditorSettingsID);
 
 	return SNew(SDockTab)
-		.Icon(FEditorStyle::GetBrush("LevelEditor.Tabs.Details"))
+		.Icon(FAppStyle::GetBrush("LevelEditor.Tabs.Details"))
 		.Label(LOCTEXT("EditorSettings_Title", "Move Network Editor Setttings"))
 		[
 			EditorSettingsWidget.ToSharedRef()
@@ -783,7 +785,7 @@ void FMNAssetEditor::OnFinishedChangingProperties(const FPropertyChangedEvent& P
 	EditingGraph->EdGraph->GetSchema()->ForceVisualizationCacheClear();
 }
 
-void FMNAssetEditor::OnPackageSaved(const FString& PackageFileName, UObject* Outer)
+void FMNAssetEditor::OnPackageSaved(const FString& PackageFileName, UPackage* Package, FObjectPostSaveContext SaveContext)
 {
 	RebuildMoveNetwork();
 }

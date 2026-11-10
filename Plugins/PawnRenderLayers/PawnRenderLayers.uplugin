@@ -1,0 +1,12 @@
+{
+    "FileVersion": 3,
+    "Version": 4,
+    "VersionName": "0.4",
+    "FriendlyName": "Pawn Render Layers (Prototype)",
+    "Description": "Runtime pawn groups and independent orthographic projection using plugin-owned shader overlays. UE 5.8.4 port.",
+    "Category": "Rendering",
+    "EnabledByDefault": true,
+    "CanContainContent": false,
+    "Modules": [{ "Name": "PawnRenderLayers", "Type": "Runtime", "LoadingPhase": "PostConfigInit" }],
+    "Plugins": [{ "Name": "PrExtendedShadingPro", "Enabled": true }, { "Name": "Niagara", "Enabled": true }]
+}

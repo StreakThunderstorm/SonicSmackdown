@@ -26,7 +26,7 @@ public class MoveNetworkEditor : ModuleRules
 				"Core",
 				"CoreUObject",
                 "Engine",
-                "OriginOfStormsMaster"
+                "SonicSmackdown"
                
 				// ... add other public dependencies that you statically link with here ...
 			}

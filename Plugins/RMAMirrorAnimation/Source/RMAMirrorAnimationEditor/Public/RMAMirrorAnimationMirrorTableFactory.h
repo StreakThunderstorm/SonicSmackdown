@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2025 Rafael Marques Almeida. All Rights Reserved.
 #pragma once
 #include "RMAMirrorAnimationMirrorTable.h"
 #include "RMAMirrorAnimationMirrorTableFactory.generated.h"
@@ -9,7 +9,7 @@ class RMAMIRRORANIMATIONEDITOR_API URMAMirrorAnimationMirrorTableFactory : publi
 {
 
 	GENERATED_BODY()
-		
+
 public:
 
 	URMAMirrorAnimationMirrorTableFactory();

@@ -13,6 +13,9 @@
 !Resources/**
 !Build/Android/project.properties
 
+# Keep modernization audit, planning and progress documents.
+!Docs/Modernization/**
+
 # ...plugins excluding their binaries...
 !Plugins/**
 Plugins/**/Binaries/**

@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2025 Rafael Marques Almeida. All Rights Reserved.
 #pragma once
 #include "AnimGraphNode_AssetPlayerBase.h"
 #include "RMAMirrorAnimationAnimNodeMirrorAnimation.h"
@@ -8,7 +8,7 @@
 UCLASS(ClassGroup = (RMAMirrorAnimation))
 class RMAMIRRORANIMATIONEDITOR_API URMAMirrorAnimationAnimGraphNodeMirrorAnimation : public UAnimGraphNode_AssetPlayerBase
 {
-	
+
 	GENERATED_BODY()
 
 	//Return The Color Of The Node

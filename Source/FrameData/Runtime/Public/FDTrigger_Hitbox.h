@@ -36,9 +36,9 @@ public:
 	UPROPERTY(Category = "Hitbox | Attack", EditAnywhere) bool bOffTheGround = false;
 	UPROPERTY(Category = "Hitbox | Attack", EditAnywhere) bool bOverhead = false;
 	UPROPERTY(Category = "Hitbox | Attack", EditAnywhere) bool bAutoPerformChildMove = false;
-	//UPROPERTY(Category = "Hitbox | Attack", EditAnywhere) EOOSHitHeight HitHeight = EOOSHitHeight::OOSHH_High;
-	//UPROPERTY(Category = "Hitbox | Attack", EditAnywhere) EOOSInputAttack AttackType = EOOSInputAttack::OOSIA_Light;
-	//UPROPERTY(Category = "Hitbox | Launch", EditAnywhere) EOOSLaunchType Launch = EOOSLaunchType::OOSLT_None;
+	//UPROPERTY(Category = "Hitbox | Attack", EditAnywhere) ESSDHitHeight HitHeight = ESSDHitHeight::SSDHH_High;
+	//UPROPERTY(Category = "Hitbox | Attack", EditAnywhere) ESSDInputAttack AttackType = ESSDInputAttack::SSDIA_Light;
+	//UPROPERTY(Category = "Hitbox | Launch", EditAnywhere) ESSDLaunchType Launch = ESSDLaunchType::SSDLT_None;
 	UPROPERTY(Category = "Hitbox | Launch", EditAnywhere) FVector2D LaunchSpeed = FVector2D(2.f, 2.f);
 	UPROPERTY(Category = "Hitbox | Launch", EditAnywhere) bool bForceTryPostLaunchJump = false;
 

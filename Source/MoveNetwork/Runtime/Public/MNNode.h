@@ -1,9 +1,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "SubclassOf.h"
-#include "TextProperty.h"
-#include "OOSMove.h"
+#include "Templates/SubclassOf.h"
+#include "UObject/TextProperty.h"
+#include "SSDMove.h"
 #include "MNNode.generated.h"
 
 class UMoveNetwork;

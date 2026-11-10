@@ -1,0 +1,248 @@
+#include "/Engine/Private/Common.ush"
+
+Texture2D<uint2> StencilTexture;
+int2 SourceMin;
+int2 MaskSize;
+uint StencilValue;
+RWTexture2D<float> MaskOutput;
+
+[numthreads(8, 8, 1)]
+void ExtractMaskCS(uint3 DispatchId : SV_DispatchThreadID)
+{
+	int2 Pixel = int2(DispatchId.xy);
+	if (any(Pixel >= MaskSize))
+		return;
+
+	int3 Source = int3(Pixel + SourceMin, 0);
+	uint Stencil = StencilTexture.Load(Source) STENCIL_COMPONENT_SWIZZLE;
+	float Coverage = Stencil == StencilValue ? 1.0 : 0.0;
+	// Depth disagreement must never punch holes into the contour's source mask.
+	MaskOutput[Pixel] = Coverage;
+}
+
+Texture2D CoverageTexture;
+int2 CoverageMin;
+int2 CoverageSize;
+float2 StrokeSize;
+uint SegmentCapacity;
+RWStructuredBuffer<float4> SegmentOutput;
+RWBuffer<uint> SegmentCountOutput;
+
+float LoadCoverage(int2 Pixel)
+{
+	if (any(Pixel < 0) || any(Pixel >= CoverageSize))
+		return 0.0;
+	return saturate(CoverageTexture.Load(int3(Pixel + CoverageMin, 0)).r);
+}
+
+float2 Crossing(float2 A, float2 B, float CoverageA, float CoverageB)
+{
+	return lerp(A, B, saturate((0.5 - CoverageA) / (CoverageB - CoverageA)));
+}
+
+void EmitSegment(float2 A, float2 B)
+{
+	uint Index;
+	InterlockedAdd(SegmentCountOutput[0], 1, Index);
+	if (Index < SegmentCapacity)
+		SegmentOutput[Index] = float4(A / float2(CoverageSize) * StrokeSize, B / float2(CoverageSize) * StrokeSize);
+}
+
+[numthreads(8, 8, 1)]
+void ExtractContourCS(uint3 DispatchId : SV_DispatchThreadID)
+{
+	if (any(DispatchId.xy > uint2(CoverageSize)))
+		return;
+
+	// Include a ring of empty samples so silhouettes touching the view boundary remain closed.
+	int2 Cell = int2(DispatchId.xy) - 1;
+	float4 C = float4(LoadCoverage(Cell), LoadCoverage(Cell + int2(1, 0)),
+		LoadCoverage(Cell + int2(1, 1)), LoadCoverage(Cell + int2(0, 1)));
+	uint Case = (C.x >= 0.5 ? 1 : 0) | (C.y >= 0.5 ? 2 : 0) | (C.z >= 0.5 ? 4 : 0) | (C.w >= 0.5 ? 8 : 0);
+	if (Case == 0 || Case == 15)
+		return;
+
+	float2 P = float2(Cell) + 0.5;
+	float2 Edges[4];
+	uint EdgeCount = 0;
+	if ((C.x >= 0.5) != (C.y >= 0.5))
+		Edges[EdgeCount++] = Crossing(P, P + float2(1, 0), C.x, C.y);
+	if ((C.y >= 0.5) != (C.z >= 0.5))
+		Edges[EdgeCount++] = Crossing(P + float2(1, 0), P + 1, C.y, C.z);
+	if ((C.z >= 0.5) != (C.w >= 0.5))
+		Edges[EdgeCount++] = Crossing(P + 1, P + float2(0, 1), C.z, C.w);
+	if ((C.w >= 0.5) != (C.x >= 0.5))
+		Edges[EdgeCount++] = Crossing(P + float2(0, 1), P, C.w, C.x);
+
+	if (EdgeCount == 2)
+		EmitSegment(Edges[0], Edges[1]);
+	else
+	{
+		// Asymptotic decider for ambiguous saddle cells. Tie-break preserves isolated foreground samples.
+		float4 V = C - 0.5;
+		float Determinant = V.x * V.z - V.y * V.w;
+		bool PairAdjacent = Determinant > 0.0 || (Determinant == 0.0 && Case == 10);
+		if (PairAdjacent)
+		{
+			EmitSegment(Edges[0], Edges[1]);
+			EmitSegment(Edges[2], Edges[3]);
+		}
+		else
+		{
+			EmitSegment(Edges[0], Edges[3]);
+			EmitSegment(Edges[1], Edges[2]);
+		}
+	}
+}
+
+Buffer<uint> SegmentCount;
+RWBuffer<uint> DrawArgumentsOutput;
+
+[numthreads(1, 1, 1)]
+void BuildArgumentsCS(uint3 DispatchId : SV_DispatchThreadID)
+{
+	uint Count = SegmentCount[0];
+	DrawArgumentsOutput[0] = 6;
+	DrawArgumentsOutput[1] = Count <= SegmentCapacity ? Count : 0;
+	DrawArgumentsOutput[2] = 0;
+	DrawArgumentsOutput[3] = 0;
+}
+
+StructuredBuffer<float4> ContourSegments;
+float StrokeRadius;
+float2 StrokeToReferenceScale;
+float StrokeFilterWidth;
+Texture2D CharacterDepth;
+Texture2D VisibleDepth;
+int2 CharacterDepthMin;
+int2 CharacterDepthSize;
+int2 VisibleDepthMin;
+int2 VisibleDepthSize;
+uint VisibleOnly;
+float DepthTolerance;
+
+void StrokeVS(uint VertexId : SV_VertexID, uint InstanceId : SV_InstanceID,
+	out float4 Position : SV_POSITION, out nointerpolation float4 Segment : TEXCOORD0)
+{
+	const float2 Corners[6] = { float2(0, 0), float2(1, 0), float2(0, 1), float2(0, 1), float2(1, 0), float2(1, 1) };
+	Segment = ContourSegments[InstanceId];
+	float2 Padding = (StrokeRadius + StrokeFilterWidth) / StrokeToReferenceScale;
+	float2 MinPosition = min(Segment.xy, Segment.zw) - Padding;
+	float2 MaxPosition = max(Segment.xy, Segment.zw) + Padding;
+	float2 Pixel = lerp(MinPosition, MaxPosition, Corners[VertexId]);
+	Position = float4(Pixel / StrokeSize * float2(2, -2) + float2(-1, 1), 0, 1);
+}
+
+float StrokePS(float4 Position : SV_POSITION, nointerpolation float4 Segment : TEXCOORD0) : SV_Target0
+{
+	float2 Direction = Segment.zw - Segment.xy;
+	float2 ReferenceDirection = Direction * StrokeToReferenceScale;
+	float2 ReferenceDelta = (Position.xy - Segment.xy) * StrokeToReferenceScale;
+	float T = saturate(dot(ReferenceDelta, ReferenceDirection) / max(dot(ReferenceDirection, ReferenceDirection), 1e-12));
+	float2 ContourPoint = Segment.xy + T * Direction;
+	float Distance = length((Position.xy - ContourPoint) * StrokeToReferenceScale);
+	if (VisibleOnly != 0 && Distance < StrokeRadius + StrokeFilterWidth * 0.5)
+	{
+		// Locate an actual foreground sample beside this segment; sampling the boundary itself can hit empty custom depth.
+		float2 CoveragePoint = ContourPoint / StrokeSize * float2(CoverageSize);
+		int2 Cell = int2(floor(CoveragePoint - 0.5));
+		float BestDistance = 1e20;
+		float2 ForegroundUV = 0.0;
+		[unroll]
+		for (int Y = -1; Y <= 1; ++Y)
+		{
+			[unroll]
+			for (int X = -1; X <= 1; ++X)
+			{
+				int2 Candidate = Cell + int2(X, Y);
+				if (LoadCoverage(Candidate) >= 0.5)
+				{
+					float2 Delta = float2(Candidate) + 0.5 - CoveragePoint;
+					float DistanceSquared = dot(Delta, Delta);
+					if (DistanceSquared < BestDistance)
+					{
+						BestDistance = DistanceSquared;
+						ForegroundUV = (float2(Candidate) + 0.5) / float2(CoverageSize);
+					}
+				}
+			}
+		}
+		if (BestDistance == 1e20)
+			return 0.0;
+
+		int2 CharacterPixel = min(int2(ForegroundUV * float2(CharacterDepthSize)), CharacterDepthSize - 1) + CharacterDepthMin;
+		float ObjectZ = CharacterDepth.Load(int3(CharacterPixel, 0)).r;
+		float2 PixelUV = saturate(Position.xy / StrokeSize);
+		int2 ScenePixel = min(int2(PixelUV * float2(VisibleDepthSize)), VisibleDepthSize - 1) + VisibleDepthMin;
+		float SceneZ = VisibleDepth.Load(int3(ScenePixel, 0)).r;
+		// Test the exterior stroke's destination, not matching character samples from two separate rendering passes.
+		if (ObjectZ + DepthTolerance < SceneZ)
+			return 0.0;
+	}
+	return saturate(0.5 + (StrokeRadius - Distance) / StrokeFilterWidth);
+}
+
+Texture2D StrokeTexture;
+SamplerState CoverageSampler;
+float2 CoverageTextureSize;
+int2 OutputMin;
+int2 OutputSize;
+int SamplesPerAxis;
+float4 StrokeColor;
+int DebugMode;
+uint InteriorOnly;
+
+float LineCoverage(float4 Position)
+{
+	int2 Pixel = int2(Position.xy) - OutputMin;
+	float Alpha = 0.0;
+	[loop]
+	for (int Y = 0; Y < SamplesPerAxis; ++Y)
+	{
+		[loop]
+		for (int X = 0; X < SamplesPerAxis; ++X)
+		{
+			float2 UV = (float2(Pixel) + (float2(X, Y) + 0.5) / SamplesPerAxis) / float2(OutputSize);
+			float2 MaskUV = (float2(CoverageMin) + UV * float2(CoverageSize)) / CoverageTextureSize;
+			float2 MaskMinUV = (float2(CoverageMin) + 0.5) / CoverageTextureSize;
+			float2 MaskMaxUV = (float2(CoverageMin + CoverageSize) - 0.5) / CoverageTextureSize;
+			float Mask = saturate(CoverageTexture.SampleLevel(CoverageSampler, clamp(MaskUV, MaskMinUV, MaskMaxUV), 0).r);
+			float Stroke = StrokeTexture.Load(int3(Pixel * SamplesPerAxis + int2(X, Y), 0)).r;
+			if (VisibleOnly != 0 && Stroke > 0.0001)
+			{
+				int2 CharacterPixel = min(int2(UV * CharacterDepthSize), CharacterDepthSize - 1) + CharacterDepthMin;
+				int2 ScenePixel = min(int2(UV * VisibleDepthSize), VisibleDepthSize - 1) + VisibleDepthMin;
+				float CharacterZ = CharacterDepth.Load(int3(CharacterPixel, 0)).r;
+				float SceneZ = VisibleDepth.Load(int3(ScenePixel, 0)).r;
+				// Account for nearest-sample MSAA depth and different geometry grids within one scene-pixel footprint.
+				float2 SceneUV = (float2(ScenePixel - VisibleDepthMin) + 0.5) / float2(VisibleDepthSize);
+				[unroll]
+				for (int TestY = -1; TestY <= 1; ++TestY)
+					[unroll]
+					for (int TestX = -1; TestX <= 1; ++TestX)
+					{
+						float2 TestUV = saturate(SceneUV + float2(TestX, TestY) / float2(VisibleDepthSize));
+						int2 TestPixel = min(int2(TestUV * CharacterDepthSize), CharacterDepthSize - 1) + CharacterDepthMin;
+						CharacterZ = max(CharacterZ, CharacterDepth.Load(int3(TestPixel, 0)).r);
+					}
+				if (CharacterZ + DepthTolerance < SceneZ)
+					Stroke = 0;
+			}
+			Alpha += DebugMode == 1 ? Mask : Stroke * (DebugMode == 2 ? 1.0 : InteriorOnly != 0 ? Mask : 1.0 - Mask);
+		}
+	}
+	Alpha /= SamplesPerAxis * SamplesPerAxis;
+	// Full coverage is opaque; only the geometric antialiasing fringe blends with the scene.
+	return saturate(Alpha);
+}
+
+float4 CompositePS(float4 Position : SV_POSITION) : SV_Target0
+{
+	return float4(DebugMode == 1 ? float3(1, 1, 1) : StrokeColor.rgb, LineCoverage(Position));
+}
+
+float4 LineMaskPS(float4 Position : SV_POSITION) : SV_Target0
+{
+	return LineCoverage(Position).xxxx;
+}
+

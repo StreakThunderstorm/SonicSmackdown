@@ -1,15 +1,16 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Commands.h"
-#include "EditorStyle.h"
+#include "Framework/Commands/Commands.h"
+#include "Styling/AppStyle.h"
 
 class FFDEditorCommands : public TCommands<FFDEditorCommands>
 {
 public:
 	/** Constructor */
 	FFDEditorCommands()
-		: TCommands<FFDEditorCommands>("FrameDataEditor", NSLOCTEXT("Contexts", "FrameDataEditor", "Frame Data Editor"), NAME_None, FEditorStyle::GetStyleSetName())
+		: TCommands<FFDEditorCommands>("FrameDataEditor", NSLOCTEXT("Contexts", "FrameDataEditor", "Frame Data Editor"),
+			NAME_None, FAppStyle::GetAppStyleSetName())
 	{
 	}
 	

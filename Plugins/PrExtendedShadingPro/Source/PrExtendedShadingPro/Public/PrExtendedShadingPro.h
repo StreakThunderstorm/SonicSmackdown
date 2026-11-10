@@ -8,8 +8,13 @@
 class FPrExtendedShadingProModule : public IModuleInterface
 {
 public:
-	static FString ShaderVersion;
-
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
+	virtual bool SupportsDynamicReloading() override { return false; }
+
+private:
+	static void InstallShaderOverrides();
+
+public:
+	static FString ShaderVersion;
 };

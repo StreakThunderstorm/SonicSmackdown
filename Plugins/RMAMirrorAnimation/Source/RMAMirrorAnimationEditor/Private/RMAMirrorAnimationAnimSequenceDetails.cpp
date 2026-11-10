@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Rafael Marques Almeida. All Rights Reserved.
+// Copyright 2017-2025 Rafael Marques Almeida. All Rights Reserved.
 #include "RMAMirrorAnimationAnimSequenceDetails.h"
 #include "RMAMirrorAnimationAnimSequenceDetailsInterface.h"
 #include "DetailCategoryBuilder.h"
@@ -14,13 +14,13 @@ TSharedRef<IDetailCustomization> FRMAMirrorAnimationAnimSequenceDetails::MakeIns
 
 void FRMAMirrorAnimationAnimSequenceDetails::CustomizeDetails(IDetailLayoutBuilder& LayoutBuilder)
 {
-	
+
 	IDetailCategoryBuilder& LCategoryBuilder = LayoutBuilder.EditCategory("MirrorAnimation");
-	
+
 	//Interface
 	URMAMirrorAnimationAnimSequenceDetailsInterface* LInterface = NULL;
-	UClass* LInterfaceClass = FStringClassReference("/RMAMirrorAnimation/UMG/AnimSequence/WBP_DetailsInterface.WBP_DetailsInterface_C").TryLoadClass<UUserWidget>();
-	
+	UClass* LInterfaceClass = FSoftClassPath("/RMAMirrorAnimation/UMG/AnimSequence/WBP_DetailsInterface.WBP_DetailsInterface_C").TryLoadClass<UUserWidget>();
+
 	if (LInterfaceClass)
 	{
 

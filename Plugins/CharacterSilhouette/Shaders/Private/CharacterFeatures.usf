@@ -1,0 +1,76 @@
+#include "/Engine/Private/Common.ush"
+
+Texture2D SurfaceTexture;
+int2 SurfaceSize;
+RWTexture2D<float> SurfaceMask;
+
+[numthreads(8, 8, 1)]
+void SurfaceMaskCS(uint3 DispatchId : SV_DispatchThreadID)
+{
+	if (all(DispatchId.xy < uint2(SurfaceSize)))
+		SurfaceMask[DispatchId.xy] = SurfaceTexture.Load(int3(DispatchId.xy, 0)).a;
+}
+
+Texture2D<uint> IdentityTexture;
+Texture2D SurfaceDepth;
+Texture2D SurfacePositions;
+uint HasSurfacePositions;
+float2 StrokeSize;
+float4x4 ClipToTranslatedWorld;
+float DepthThreshold;
+float CreaseCosine;
+uint EdgeFlags;
+uint SegmentCapacity;
+RWStructuredBuffer<float4> SegmentOutput;
+RWBuffer<uint> SegmentCountOutput;
+
+float3 SurfacePosition(int2 Pixel, float DeviceDepth)
+{
+	if (HasSurfacePositions != 0)
+		return SurfacePositions.Load(int3(Pixel, 0)).xyz;
+	float2 UV = (float2(Pixel) + 0.5) / float2(SurfaceSize);
+	float4 Position = mul(float4(UV.x * 2 - 1, 1 - UV.y * 2, DeviceDepth, 1), ClipToTranslatedWorld);
+	return Position.xyz / Position.w;
+}
+
+void CheckFeature(int2 A, int2 B, bool Horizontal)
+{
+	if (any(B >= SurfaceSize))
+		return;
+	uint IdA = IdentityTexture.Load(int3(A, 0));
+	uint IdB = IdentityTexture.Load(int3(B, 0));
+	if (IdA == 0 || IdB == 0)
+		return;
+	bool Edge = IdA != IdB && (EdgeFlags & 1) != 0;
+	if (IdA == IdB)
+	{
+		float3 NormalA = normalize(SurfaceTexture.Load(int3(A, 0)).xyz);
+		float3 NormalB = normalize(SurfaceTexture.Load(int3(B, 0)).xyz);
+		float DepthA = SurfaceDepth.Load(int3(A, 0)).r;
+		float DepthB = SurfaceDepth.Load(int3(B, 0)).r;
+		float3 Delta = SurfacePosition(B, DepthB) - SurfacePosition(A, DepthA);
+		// Tangent-plane residual rejects depth gradients on sloping continuous surfaces.
+		float Residual = min(abs(dot(NormalA, Delta)), abs(dot(NormalB, Delta)));
+		Edge = ((EdgeFlags & 2) != 0 && Residual > DepthThreshold)
+			|| ((EdgeFlags & 4) != 0 && dot(NormalA, NormalB) < CreaseCosine);
+	}
+	if (!Edge)
+		return;
+	float2 Center = (float2(A + B) + 1) * 0.5;
+	float2 Tangent = Horizontal ? float2(0, 0.5) : float2(0.5, 0);
+	uint Index;
+	InterlockedAdd(SegmentCountOutput[0], 1, Index);
+	if (Index < SegmentCapacity)
+		SegmentOutput[Index] = float4((Center - Tangent) / float2(SurfaceSize) * StrokeSize,
+			(Center + Tangent) / float2(SurfaceSize) * StrokeSize);
+}
+
+[numthreads(8, 8, 1)]
+void FeaturesCS(uint3 DispatchId : SV_DispatchThreadID)
+{
+	int2 Pixel = int2(DispatchId.xy);
+	if (any(Pixel >= SurfaceSize))
+		return;
+	CheckFeature(Pixel, Pixel + int2(1, 0), true);
+	CheckFeature(Pixel, Pixel + int2(0, 1), false);
+}
